@@ -32,7 +32,7 @@ bool connected_flag = false;
 
 void connect() {
     static uint32_t last = millis();
-    if (millis() - last > 30000) {
+    if (millis() - last > 5000) {
         last = millis();
         if (!connected_flag) {
             connected_flag = true;
@@ -44,13 +44,16 @@ void connect() {
 int main(int argc, char** argv) {
     jw.subscribe([](justwifi_messages_t message, char* data) {
         if (message == MESSAGE_CONNECT_WAITING) return;
-        std::cout << "jw msg=" << justwifi_messages_strings[message] << " data=" << (data ? data : "NULL") << std::endl;
+        std::cout 
+            << "[" << millis() << "] "
+            << "jw msg=" << justwifi_messages_strings[message]
+            << " data=" << (data ? data : "NULL")
+            << std::endl;
     });
     jw.enableScan(true);
     jw.addNetwork("TEST", "testtesttest");
     do {
         jw.loop();
-
-
+        connect();
     } while (true);
 }
