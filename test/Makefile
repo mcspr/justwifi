@@ -1,0 +1,20 @@
+.PHONY: all clean
+
+OBJECTS = jwtest.o Arduino.o WiFi.o IPAddress.o JustWifi.o ESP.o
+CXXFLAGS := -I./ -I../src/
+CC := g++
+
+all: jwtest
+
+clean:
+	rm $(OBJECTS)
+
+%.o: %.cpp
+	$(CC) $(CXXFLAGS) $< -c -o $@
+
+JustWifi.o:
+	$(CC) $(CXXFLAGS) -c ../src/JustWifi.cpp -o JustWifi.o
+
+jwtest: $(OBJECTS)
+	$(CC) $(CXXFLAGS) $^ -o $@
+
