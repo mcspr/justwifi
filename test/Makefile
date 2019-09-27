@@ -1,4 +1,4 @@
-.PHONY: all clean
+.PHONY: all clean JustWifi.o
 
 OBJECTS = jwtest.o Arduino.o WiFi.o IPAddress.o JustWifi.o ESP.o
 CXXFLAGS := -I./ -I../src/
