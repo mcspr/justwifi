@@ -42,6 +42,10 @@ void connect() {
 }
 
 int main(int argc, char** argv) {
+
+    WiFi.addNetworkInfo("TEST", ENC_TYPE_CCMP, -50, {0x11, 0x12, 0x13, 0x14, 0x15, 0x20}, 6, false);
+    WiFi.addNetworkInfo("TEST", ENC_TYPE_CCMP, -75, {0x11, 0x12, 0x13, 0x14, 0x15, 0x40}, 6, false);
+
     jw.subscribe([](justwifi_messages_t message, char* data) {
         if (message == MESSAGE_CONNECT_WAITING) return;
         std::cout 
@@ -56,4 +60,5 @@ int main(int argc, char** argv) {
         jw.loop();
         connect();
     } while (true);
+
 }

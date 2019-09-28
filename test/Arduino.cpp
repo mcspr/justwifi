@@ -9,3 +9,5 @@ uint32_t millis() {
     auto duration = now.time_since_epoch();
     return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 }
+
+SerialClass Serial;

@@ -3,7 +3,10 @@
 #include <string>
 #include <chrono>
 #include <thread>
-#include <string.h>
+#include <cstring>
+#include <cstdio>
+#include <cstdarg>
+#include <vector>
 
 #include "ESP.h"
 
@@ -12,13 +15,29 @@
 #define snprintf_P snprintf
 #define sprintf_P sprintf
 
+#define DEBUG_ESP_WIFI
+#define DEBUG_ESP_PORT Serial
+
 extern void delay(uint32_t ms);
 extern uint32_t millis();
+
+class SerialClass {
+    public:
+        int printf(const char* format, ...) {
+            va_list args;
+            int res = 0;
+            va_start(args, format);
+            res = vfprintf(stdout, format, args);
+            va_end(args);
+            return res;
+        }
+};
 
 class String {
     public:
         String() {}
         String(const char* str) : _string(str) {}
+        String(const String& str) : _string(str._string) {}
 
         String& operator =(const char* str) { _string = str; }
         String& operator =(const String& str) { _string = str._string; }
@@ -35,4 +54,4 @@ class String {
 
 };
 
-
+extern SerialClass Serial;

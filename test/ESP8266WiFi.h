@@ -35,10 +35,7 @@ enum wl_enc_type {  /* Values map to 802.11 encryption suites... */
 
 struct WiFiClass {
 
-    WiFiClass() :
-        bssid1((uint8_t*)malloc(6)),
-        bssid2((uint8_t*)malloc(6))
-    {}
+    WiFiClass() {}
 
     void enableSTA(bool) { }
     void enableAP(bool) { }
@@ -63,35 +60,31 @@ struct WiFiClass {
         _hostname = host;
     }
 
-    uint8_t* bssid1;
-    uint8_t* bssid2;
+    struct wifi_scan_t {
+        String ssid;
+        uint8_t sec;
+        int32_t rssi;
+        std::vector<uint8_t> bssid;
+        int32_t chan;
+        bool hidden;
+    };
 
-    void getNetworkInfo(uint8_t i, String& ssid_scan, uint8_t& sec_scan, int32_t& rssi_scan, uint8_t*& BSSID_scan, int32_t& chan_scan, bool& hidden_scan) {
-        ssid_scan = "TEST";
-        sec_scan = ENC_TYPE_CCMP;
-        chan_scan = 6;
-        hidden_scan = false;
-        if (i == 0) {
-            rssi_scan = 60;
-            BSSID_scan = bssid1;
-            BSSID_scan[0] = 0x11;
-            BSSID_scan[1] = 0x12;
-            BSSID_scan[2] = 0x13;
-            BSSID_scan[3] = 0x14;
-            BSSID_scan[4] = 0x15;
-            BSSID_scan[5] = 0x20;
-        } else if (i == 1) {
-            rssi_scan = 50;
-            BSSID_scan = bssid2;
-            BSSID_scan[0] = 0x11;
-            BSSID_scan[1] = 0x12;
-            BSSID_scan[2] = 0x13;
-            BSSID_scan[3] = 0x14;
-            BSSID_scan[4] = 0x15;
-            BSSID_scan[5] = 0x10;
-        }
+    std::vector<wifi_scan_t> _networks;
+    void addNetworkInfo(const String& ssid, uint8_t sec, int32_t rssi, std::vector<uint8_t> BSSID, int32_t chan, bool hidden) {
+        _networks.emplace_back(wifi_scan_t{
+            ssid, sec, rssi, BSSID, chan, hidden
+        });
     }
 
+    void getNetworkInfo(uint8_t i, String& ssid_scan, uint8_t& sec_scan, int32_t& rssi_scan, uint8_t*& BSSID_scan, int32_t& chan_scan, bool& hidden_scan) {
+        const auto& network = _networks.at(i);
+        ssid_scan = network.ssid;
+        sec_scan = network.sec;
+        rssi_scan = network.rssi;
+        chan_scan = network.chan;
+        hidden_scan = network.hidden;
+        BSSID_scan = const_cast<uint8_t*>(network.bssid.data());
+    }
 
     void scanNetworks(bool, bool) { }
     int8_t scanComplete() { return 2; }
