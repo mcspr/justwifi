@@ -47,13 +47,16 @@ struct WiFiClass {
     void config(IPAddress, IPAddress, IPAddress, IPAddress) { }
     void softAPConfig(IPAddress, IPAddress, IPAddress) { }
     void softAPConfig(const char*, const char*, IPAddress) { }
-    void disconnect() { }
     void persistent(bool) { }
     void setAutoConnect(bool) { }
     void setAutoReconnect(bool) { }
 
     void begin(const char*, const char*) { }
     void begin(const char*, const char*, uint8_t, uint8_t*) { }
+
+    void disconnect() {
+        _status = WL_DISCONNECTED;
+    }
 
     String _hostname;
     void hostname(const char* host) {
