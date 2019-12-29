@@ -263,7 +263,7 @@ class JustWifi {
 
         void _disable();
         void _machine();
-        uint8_t _populate(int8_t networkCount, bool keep = false);
+        uint8_t _populate(int8_t networkCount, bool periodic = false);
         uint8_t _sortByRSSI();
         void _doCallback(justwifi_messages_t message, char * parameter = nullptr);
 

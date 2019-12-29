@@ -275,7 +275,7 @@ uint8_t JustWifi::_sortByRSSI() {
 
 }
 
-uint8_t JustWifi::_populate(int8_t networkCount, bool keep) {
+uint8_t JustWifi::_populate(int8_t networkCount, bool periodic) {
 
     uint8_t count = 0;
 
@@ -285,7 +285,7 @@ uint8_t JustWifi::_populate(int8_t networkCount, bool keep) {
     bool foundBetterNetwork = false;
     for (size_t id = 0; id < _network_list.size(); ++id) {
         auto& network = _network_list[id];
-        if (keep && connected() && network.ssid.equals(WiFi.SSID())) {
+        if (periodic && connected() && network.ssid.equals(WiFi.SSID())) {
             connectedID = id;
             network.rssi = WiFi.RSSI();
             network.channel = WiFi.channel();
@@ -323,17 +323,19 @@ uint8_t JustWifi::_populate(int8_t networkCount, bool keep) {
                 }
 
                 {
-                    char buffer[128];
-                    sprintf_P(buffer,
-                        PSTR("%s BSSID: %s CH: %2d RSSI: %3d SEC: %s SSID: %s"),
-                        (known ? "-->" : "   "),
-                        _bssid_to_string(scan.bssid).c_str(),
-                        scan.channel,
-                        scan.rssi,
-                        _security_to_string(scan.security).c_str(),
-                        scan.ssid.c_str()
-                    );
-                    _doCallback(MESSAGE_FOUND_NETWORK, buffer);
+                    if (!periodic) {
+                        char buffer[128];
+                        sprintf_P(buffer,
+                            PSTR("%s BSSID: %s CH: %2d RSSI: %3d SEC: %s SSID: %s"),
+                            (known ? "-->" : "   "),
+                            _bssid_to_string(scan.bssid).c_str(),
+                            scan.channel,
+                            scan.rssi,
+                            _security_to_string(scan.security).c_str(),
+                            scan.ssid.c_str()
+                        );
+                        _doCallback(MESSAGE_FOUND_NETWORK, buffer);
+                    }
                 }
 
                 count++;
