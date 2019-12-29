@@ -267,8 +267,12 @@ uint8_t JustWifi::_sortByRSSI() {
 
     // In case we found that the current network has a better alternative, notify the user
     // Then, after calling ::disconnect(), we will use a new network
+    // XXX: must change _doCallback and TMessageFunction 2nd arg to `const char*`
     if (connected() && ((_network_list[bestID].rssi - WiFi.RSSI()) >= _scan_rssi_threshold)) {
-        _doCallback(MESSAGE_FOUND_BETTER_NETWORK);
+        _doCallback(
+            MESSAGE_FOUND_BETTER_NETWORK,
+            const_cast<char*>(_bssid_to_string(_network_list[bestID].bssid.data()).c_str())
+        );
     }
 
     return bestID;
