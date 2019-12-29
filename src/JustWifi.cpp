@@ -326,28 +326,26 @@ uint8_t JustWifi::_populate(int8_t networkCount, bool periodic) {
                     _update_network_from_scan(scan, network);
                 }
 
-                {
-                    if (!periodic) {
-                        char buffer[128];
-                        sprintf_P(buffer,
-                            PSTR("%s BSSID: %s CH: %2d RSSI: %3d SEC: %s SSID: %s"),
-                            (known ? "-->" : "   "),
-                            _bssid_to_string(scan.bssid).c_str(),
-                            scan.channel,
-                            scan.rssi,
-                            _security_to_string(scan.security).c_str(),
-                            scan.ssid.c_str()
-                        );
-                        _doCallback(MESSAGE_FOUND_NETWORK, buffer);
-                    }
-                }
-
                 count++;
                 known = true;
                 break;
 
             }
 
+        }
+
+        if (!periodic) {
+            char buffer[128];
+            sprintf_P(buffer,
+                PSTR("%s BSSID: %s CH: %2d RSSI: %3d SEC: %s SSID: %s"),
+                (known ? "-->" : "   "),
+                _bssid_to_string(scan.bssid).c_str(),
+                scan.channel,
+                scan.rssi,
+                _security_to_string(scan.security).c_str(),
+                scan.ssid.c_str()
+            );
+            _doCallback(MESSAGE_FOUND_NETWORK, buffer);
         }
 
     }
