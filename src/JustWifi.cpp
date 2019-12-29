@@ -283,7 +283,6 @@ uint8_t JustWifi::_populate(int8_t networkCount, bool periodic) {
 
     uint8_t count = 0;
 
-    // Copy existing list and reset existing status variables to disable networks that have disappeared
     // If still connected, preserve current value to avoid connecting to a worse quailty network
     auto connectedID = JUSTWIFI_ID_NONE;
     bool foundBetterNetwork = false;
@@ -554,12 +553,11 @@ void JustWifi::_machine() {
         // ---------------------------------------------------------------------
 
         case STATE_IDLE: {
-            bool periodic_scan = (_scan_periodic_interval && (millis() - _scan_periodic_last >= _scan_periodic_interval));
 
             if (WiFi.status() == WL_CONNECTED) {
 
                 // When scan interval is configured, launch an async scanning without disconnection
-                if (_scan && periodic_scan) {
+                if (_scan && _scan_periodic_interval && (millis() - _scan_periodic_last >= _scan_periodic_interval)) {
                     _scan_periodic_last = millis();
                     _state = STATE_SCAN_PERIODIC_START;
                     return;
@@ -568,17 +566,19 @@ void JustWifi::_machine() {
             } else {
 
                 // Try to connect when there are networks available and STA mode is enabled
-                if (_sta_enabled) {
-                    if (_network_list.size() > 0) {
-                        if ((0 == _timeout) || ((_reconnect_timeout > 0) && (millis() - _timeout > _reconnect_timeout))) {
-                            // When periodic scan is on, only scan again when periodic timeout expires
-                            if (_currentID == 0 || periodic_scan) {
-                                _state = _scan ? STATE_SCAN_START : STATE_STA_START;
+                if (_sta_enabled && _network_list.size() > 0) {
+                    if ((0 == _timeout) || ((_reconnect_timeout > 0) && (millis() - _timeout > _reconnect_timeout))) {
+                        // When periodic scan is on, only scan again when periodic timeout expires
+                        if (_scan && _scan_periodic_interval) {
+                            if (millis() - _scan_periodic_last >= _scan_periodic_interval) {
+                                _state = STATE_SCAN_START;
                             } else {
                                 _state = STATE_STA_START;
                             }
-                            return;
+                        } else {
+                            _state = _scan ? STATE_SCAN_START : STATE_STA_START;
                         }
+                        return;
                     }
                 }
 
@@ -946,7 +946,6 @@ bool JustWifi::connectable() {
 
 void JustWifi::disconnect() {
     _timeout = 0;
-    _currentID = 0;
     WiFi.disconnect();
     WiFi.enableSTA(false);
     _doCallback(MESSAGE_DISCONNECTED);
