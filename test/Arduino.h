@@ -9,11 +9,7 @@
 #include <vector>
 
 #include "ESP.h"
-
-#define PSTR(X) X
-#define strncmp_P strncmp
-#define snprintf_P snprintf
-#define sprintf_P sprintf
+#include "pgmspace.h"
 
 #define DEBUG_ESP_WIFI
 #define DEBUG_ESP_PORT Serial
@@ -23,6 +19,9 @@ extern uint32_t millis();
 
 class SerialClass {
     public:
+        void println(const char* string) {
+            fprintf(stdout, "%s\n", string);
+        }
         int printf(const char* format, ...) {
             va_list args;
             int res = 0;
@@ -36,8 +35,12 @@ class SerialClass {
 class String {
     public:
         String() {}
+
+        String(const String&) = default;
+        String(String&&) = default;
+
+        String(const __FlashStringHelper* str) : _string(reinterpret_cast<const char*>(str)) {}
         String(const char* str) : _string(str) {}
-        String(const String& str) : _string(str._string) {}
 
         String& operator =(const char* str) { _string = str; }
         String& operator =(const String& str) { _string = str._string; }
@@ -47,6 +50,10 @@ class String {
 
         const char* c_str() const {
             return _string.c_str();
+        }
+
+        const size_t length() const {
+            return _string.length();
         }
 
     private:

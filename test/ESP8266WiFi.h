@@ -87,7 +87,7 @@ struct WiFiClass {
     }
 
     void scanNetworks(bool, bool) { }
-    int8_t scanComplete() { return 2; }
+    int8_t scanComplete() { return _networks.size(); }
     void scanDelete() { }
 
     String _ssid;
@@ -111,6 +111,16 @@ struct WiFiClass {
     }
     bool mode(WiFiMode_t mode) {
         _mode = mode;
+    }
+
+    int8_t _rssi;
+    int8_t RSSI() {
+        return _rssi;
+    }
+
+    uint8_t _channel;
+    uint8_t channel() {
+        return _channel;
     }
 
 };

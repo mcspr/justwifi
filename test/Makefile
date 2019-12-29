@@ -10,11 +10,11 @@ clean:
 	rm $(OBJECTS)
 
 %.o: %.cpp
-	$(CC) $(CXXFLAGS) $< -c -o $@
+	$(CC) $(CXXFLAGS) $< -std=c++17 -c -o $@
 
 JustWifi.o:
 	$(CC) $(CXXFLAGS) -c ../src/JustWifi.cpp -o JustWifi.o
 
 jwtest: $(OBJECTS)
-	$(CC) $(CXXFLAGS) $^ -o $@
+	$(CC) $(CXXFLAGS) $^ -lpthread -o $@
 
