@@ -32,9 +32,9 @@ along with the JustWifi library.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "user_interface.h"
 
-wps_cb_status _jw_wps_status;
+static wps_cb_status _jw_wps_status;
 
-void _jw_wps_status_cb(wps_cb_status status) {
+static void _jw_wps_status_cb(wps_cb_status status) {
     _jw_wps_status = status;
 }
 
@@ -45,15 +45,159 @@ void _jw_wps_status_cb(wps_cb_status status) {
 //------------------------------------------------------------------------------
 
 JustWifi::JustWifi() {
-    _softap.ssid = NULL;
-    _timeout = 0;
     WiFi.enableAP(false);
     WiFi.enableSTA(false);
-    snprintf_P(_hostname, sizeof(_hostname), PSTR("ESP_%06X"), ESP.getChipId());
+    snprintf_P(_hostname, sizeof(_hostname), PSTR("ESP-%06X"), ESP.getChipId());
 }
 
-JustWifi::~JustWifi() {
-    cleanNetworks();
+//------------------------------------------------------------------------------
+// NETWORK MANAGEMENT
+//------------------------------------------------------------------------------
+
+BSSID_t::BSSID_t() :
+    _data{}
+{}
+
+void BSSID_t::copy(const uint8_t* data) {
+    memcpy(_data, data, sizeof(_data));
+}
+
+BSSID_t::BSSID_t(const BSSID_t& other) {
+    copy(other._data);
+}
+
+BSSID_t::BSSID_t(BSSID_t&& other) :
+    BSSID_t(other)
+{}
+
+network_cfg_t::network_cfg_t() :
+    ssid(),
+    pass(),
+    dhcp(false),
+    ip(),
+    gw(),
+    netmask(),
+    dns()
+{}
+
+network_t::network_t() :
+    scanned(false),
+    rssi(0),
+    security(0),
+    channel(0),
+    bssid(),
+    next(JUSTWIFI_ID_NONE)
+{}
+
+// Check SSID too long or missing
+bool JustWifi::_checkSSID(const char* ssid) {
+    if (ssid && *ssid != '\0' && strlen(ssid) <= 31) {
+        return true;
+    }
+    return false;
+}
+
+// Check PASS too long (missing is OK, since there are OPEN networks)
+// TODO: 64 char passphrase?
+bool JustWifi::_checkPass(const char* pass) {
+    if (pass && strlen(pass) <= 63) {
+        return true;
+    }
+    return false;
+}
+
+//------------------------------------------------------------------------------
+// VALUE-2-STRING HELPERS
+//------------------------------------------------------------------------------
+
+static String _state_to_string(justwifi_states_t state) {
+    const __FlashStringHelper *result;
+    switch (state) {
+        case STATE_IDLE: result = F("STATE_IDLE"); break;
+        case STATE_SCAN_START: result = F("STATE_SCAN_START"); break;
+        case STATE_SCAN_ONGOING: result = F("STATE_SCAN_ONGOING"); break;
+        case STATE_SCAN_PERIODIC_START: result = F("STATE_SCAN_PERIODIC_START"); break;
+        case STATE_SCAN_PERIODIC_ONGOING: result = F("STATE_SCAN_PERIODIC_ONGOING"); break;
+        case STATE_STA_START: result = F("STATE_STA_START"); break;
+        case STATE_STA_ONGOING: result = F("STATE_STA_ONGOING"); break;
+        case STATE_STA_FAILED: result = F("STATE_STA_FAILED"); break;
+        case STATE_STA_SUCCESS: result = F("STATE_STA_SUCCESS"); break;
+        case STATE_WPS_START: result = F("STATE_WPS_START"); break;
+        case STATE_WPS_ONGOING: result = F("STATE_WPS_ONGOING"); break;
+        case STATE_WPS_FAILED: result = F("STATE_WPS_FAILED"); break;
+        case STATE_WPS_SUCCESS: result = F("STATE_WPS_SUCCESS"); break;
+        case STATE_SMARTCONFIG_START: result = F("STATE_SMARTCONFIG_START"); break;
+        case STATE_SMARTCONFIG_ONGOING: result = F("STATE_SMARTCONFIG_ONGOING"); break;
+        case STATE_SMARTCONFIG_FAILED: result = F("STATE_SMARTCONFIG_FAILED"); break;
+        case STATE_SMARTCONFIG_SUCCESS: result = F("STATE_SMARTCONFIG_SUCCESS"); break;
+        case STATE_FALLBACK: result = F("STATE_FALLBACK"); break;
+    }
+    return String(result);
+}
+
+static String _wifimode_to_string(WiFiMode_t mode) {
+    const __FlashStringHelper *result;
+    switch (mode) {
+        case WIFI_OFF: result = F("OFF"); break;
+        case WIFI_AP: result = F("AP"); break;
+        case WIFI_STA: result = F("STA"); break;
+        case WIFI_AP_STA: result = F("AP_STA"); break;
+        default: result = F("UNKNOWN"); break;
+    }
+    return String(result);
+}
+
+static String _wifistatus_to_string(wl_status_t status) {
+    const __FlashStringHelper *result;
+    switch (status) {
+        case WL_IDLE_STATUS: result = F("WL_IDLE_STATUS"); break;
+        case WL_NO_SSID_AVAIL: result = F("WL_NO_SSID_AVAIL"); break;
+        case WL_SCAN_COMPLETED: result = F("WL_SCAN_COMPLETED"); break;
+        case WL_CONNECTED: result = F("WL_CONNECTED"); break;
+        case WL_CONNECT_FAILED: result = F("WL_CONNECT_FAILED"); break;
+        case WL_CONNECTION_LOST: result = F("WL_CONNECTION_LOST"); break;
+        case WL_DISCONNECTED: result = F("WL_DISCONNECTED"); break;
+    }
+    return String(result);
+}
+
+static String _security_to_string(uint8_t security) {
+    const __FlashStringHelper *result;
+    switch (security) {
+        case ENC_TYPE_WEP:
+            result = F("WEP ");
+            break;
+        case ENC_TYPE_TKIP:
+            result = F("WPA ");
+            break;
+        case ENC_TYPE_CCMP:
+            result = F("WPA2");
+            break;
+        case ENC_TYPE_AUTO:
+            result = F("AUTO");
+            break;
+        default:
+            result = F("OPEN");
+    }
+    return String(result);
+}
+
+static String _bssid_to_string(const uint8_t* bssid) {
+    char buffer[20];
+    snprintf(
+        buffer, sizeof(buffer),
+        "%02X:%02X:%02X:%02X:%02X:%02X",
+        bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]
+    );
+    return String(buffer);
+}
+
+static void _update_network_from_scan(const network_scan_t& scan, network_t& network) {
+    network.rssi = scan.rssi;
+    network.security = scan.security;
+    network.channel = scan.channel;
+    network.scanned = true;
+    network.bssid.copy(scan.bssid);
 }
 
 //------------------------------------------------------------------------------
@@ -78,11 +222,11 @@ void JustWifi::_disable() {
 uint8_t JustWifi::_sortByRSSI() {
 
     bool first = true;
-    uint8_t bestID = 0xFF;
+    uint8_t bestID = JUSTWIFI_ID_NONE;
 
     for (uint8_t i = 0; i < _network_list.size(); i++) {
 
-        network_t * entry = &_network_list[i];
+        network_t* entry = &_network_list[i];
 
         // if no data skip
         if (entry->rssi == 0) continue;
@@ -91,7 +235,7 @@ uint8_t JustWifi::_sortByRSSI() {
         if (first) {
             first = false;
             bestID = i;
-            entry->next = 0xFF;
+            entry->next = JUSTWIFI_ID_NONE;
 
         // The best so far
         } else if (entry->rssi > _network_list[bestID].rssi) {
@@ -102,7 +246,7 @@ uint8_t JustWifi::_sortByRSSI() {
         } else {
 
             network_t * current = &_network_list[bestID];
-            while (current->next != 0xFF) {
+            while (current->next != JUSTWIFI_ID_NONE) {
                 if (entry->rssi > _network_list[current->next].rssi) {
                     entry->next = current->next;
                     current->next = i;
@@ -112,69 +256,84 @@ uint8_t JustWifi::_sortByRSSI() {
             }
 
             // Place it the last
-            if (current->next == 0xFF) {
+            if (current->next == JUSTWIFI_ID_NONE) {
                 current->next = i;
-                entry->next = 0xFF;
+                entry->next = JUSTWIFI_ID_NONE;
             }
 
         }
 
     }
 
+    // In case we found that the current network has a better alternative, notify the user
+    // Then, after calling ::disconnect(), we will use a new network
+    if (connected() && ((_network_list[bestID].rssi - WiFi.RSSI()) >= _scan_rssi_threshold)) {
+        _doCallback(MESSAGE_FOUND_BETTER_NETWORK);
+    }
+
     return bestID;
 
 }
 
-String JustWifi::_encodingString(uint8_t security) {
-    if (security == ENC_TYPE_WEP) return String("WEP ");
-    if (security == ENC_TYPE_TKIP) return String("WPA ");
-    if (security == ENC_TYPE_CCMP) return String("WPA2");
-    if (security == ENC_TYPE_AUTO) return String("AUTO");
-    return String("OPEN");
-}
-
-uint8_t JustWifi::_populate(uint8_t networkCount) {
+uint8_t JustWifi::_populate(int8_t networkCount, bool keep) {
 
     uint8_t count = 0;
 
-    // Reset RSSI to disable networks that have disappeared
-    for (uint8_t j = 0; j < _network_list.size(); j++) {
-        _network_list[j].rssi = 0;
-        _network_list[j].scanned = false;
+    // Copy existing list and reset existing status variables to disable networks that have disappeared
+    // If still connected, preserve current value to avoid connecting to a worse quailty network
+    auto connectedID = JUSTWIFI_ID_NONE;
+    bool foundBetterNetwork = false;
+    for (size_t id = 0; id < _network_list.size(); ++id) {
+        auto& network = _network_list[id];
+        if (keep && connected() && network.ssid.equals(WiFi.SSID())) {
+            connectedID = id;
+            network.rssi = WiFi.RSSI();
+            network.channel = WiFi.channel();
+        } else {
+            network.rssi = 0;
+            network.channel = 0;
+        }
+        network.scanned = false;
     }
 
-    String ssid_scan;
-    int32_t rssi_scan;
-    uint8_t sec_scan;
-    uint8_t* BSSID_scan;
-    int32_t chan_scan;
-    bool hidden_scan;
+    // Update network list with scan data
 
-    // Populate defined networks with scan data
-    for (int8_t i = 0; i < networkCount; ++i) {
+    network_scan_t scan;
 
-        WiFi.getNetworkInfo(i, ssid_scan, sec_scan, rssi_scan, BSSID_scan, chan_scan, hidden_scan);
+    for (decltype(networkCount) scan_id = 0; scan_id < networkCount; ++scan_id) {
+
+        WiFi.getNetworkInfo(scan_id, scan.ssid, scan.security, scan.rssi, scan.bssid, scan.channel, scan.hidden);
 
         bool known = false;
 
-        for (uint8_t j = 0; j < _network_list.size(); j++) {
+        for (unsigned char networkID = 0; networkID < _network_list.size(); ++networkID) {
 
-            network_t * entry = &_network_list[j];
+            network_t& network = _network_list[networkID];
 
-            if (ssid_scan.equals(entry->ssid)) {
+            if (scan.ssid.equals(network.ssid)) {
 
-                // Check security
-                if ((sec_scan != ENC_TYPE_NONE) && (entry->pass == NULL)) continue;
+                // Ensure that we have a passphrase configured when network is protected
+                if ((scan.security != ENC_TYPE_NONE) && (!network.pass.length())) continue;
 
                 // In case of several networks with the same SSID
                 // we want to get the one with the best RSSI
                 // Thanks to Robert (robi772 @ bitbucket.org)
-                if (entry->rssi < rssi_scan || entry->rssi == 0) {
-                    entry->rssi = rssi_scan;
-                    entry->security = sec_scan;
-                    entry->channel = chan_scan;
-                    entry->scanned = true;
-                    memcpy((void*) &entry->bssid, (void*) BSSID_scan, sizeof(entry->bssid));
+                if (network.rssi < scan.rssi || network.rssi == 0) {
+                    _update_network_from_scan(scan, network);
+                }
+
+                {
+                    char buffer[128];
+                    sprintf_P(buffer,
+                        PSTR("%s BSSID: %s CH: %2d RSSI: %3d SEC: %s SSID: %s"),
+                        (known ? "-->" : "   "),
+                        _bssid_to_string(scan.bssid).c_str(),
+                        scan.channel,
+                        scan.rssi,
+                        _security_to_string(scan.security).c_str(),
+                        scan.ssid.c_str()
+                    );
+                    _doCallback(MESSAGE_FOUND_NETWORK, buffer);
                 }
 
                 count++;
@@ -185,84 +344,77 @@ uint8_t JustWifi::_populate(uint8_t networkCount) {
 
         }
 
-		{
-		    char buffer[128];
-		    sprintf_P(buffer,
-		        PSTR("%s BSSID: %02X:%02X:%02X:%02X:%02X:%02X CH: %2d RSSI: %3d SEC: %s SSID: %s"),
-		        (known ? "-->" : "   "),
-		        BSSID_scan[0], BSSID_scan[1], BSSID_scan[2], BSSID_scan[3], BSSID_scan[4], BSSID_scan[5],
-		        chan_scan,
-                rssi_scan,
-                _encodingString(sec_scan).c_str(),
-		        ssid_scan.c_str()
-		    );
-		    _doCallback(MESSAGE_FOUND_NETWORK, buffer);
-		}
-
     }
+
+    // After all scan data is copied, we can safely clear Core's buffers
+    WiFi.scanDelete();
 
     return count;
 
 }
 
-uint8_t JustWifi::_doSTA(uint8_t id) {
+justwifi_responses_t JustWifi::_doSTA(uint8_t id) {
 
-    static uint8_t networkID;
-    static uint8_t state = RESPONSE_START;
-    static unsigned long timeout;
+    static uint8_t networkID = JUSTWIFI_ID_NONE;
+    static auto response = RESPONSE_START;
+    static unsigned long timeout = 0;
 
     // Reset connection process
-    if (id != 0xFF) {
-        state = RESPONSE_START;
+    if (id != JUSTWIFI_ID_NONE) {
+        response = RESPONSE_START;
         networkID = id;
     }
 
-    // Get network
-    network_t entry = _network_list[networkID];
+    // Get network when it is properly configured
+    if (networkID == JUSTWIFI_ID_NONE) {
+        return (response = RESPONSE_FAIL);
+    }
+
+    auto& entry = _network_list[networkID];
 
     // No state or previous network failed
-    if (RESPONSE_START == state) {
+    if (RESPONSE_START == response) {
 
         WiFi.persistent(false);
         _disable();
         WiFi.enableSTA(true);
         WiFi.hostname(_hostname);
 
-        // Configure static options
+        // Static options need to be configured before WiFi.begin()
         if (!entry.dhcp) {
             WiFi.config(entry.ip, entry.gw, entry.netmask, entry.dns);
         }
 
-        // Connect
+        // Try to connect to either specific network or let SDK decide which network to use
 		{
             char buffer[128];
             if (entry.scanned) {
                 snprintf_P(buffer, sizeof(buffer),
-                    PSTR("BSSID: %02X:%02X:%02X:%02X:%02X:%02X CH: %02d, RSSI: %3d, SEC: %s, SSID: %s"),
-                    entry.bssid[0], entry.bssid[1], entry.bssid[2], entry.bssid[3], entry.bssid[4], entry.bssid[5],
+                    PSTR("BSSID: %s CH: %02d, RSSI: %3d, SEC: %s, SSID: %s"),
+                    _bssid_to_string(entry.bssid.data()).c_str(),
                     entry.channel,
                     entry.rssi,
-                    _encodingString(entry.security).c_str(),
-                    entry.ssid
+                    _security_to_string(entry.security).c_str(),
+                    entry.ssid.c_str()
                 );
             } else {
-                snprintf_P(buffer, sizeof(buffer), PSTR("SSID: %s"), entry.ssid);
+                snprintf_P(buffer, sizeof(buffer), PSTR("SSID: %s"), entry.ssid.c_str());
             }
 		    _doCallback(MESSAGE_CONNECTING, buffer);
         }
 
         if (entry.channel == 0) {
-            WiFi.begin(entry.ssid, entry.pass);
+            WiFi.begin(entry.ssid.c_str(), entry.pass.c_str());
         } else {
-            WiFi.begin(entry.ssid, entry.pass, entry.channel, entry.bssid);
+            WiFi.begin(entry.ssid.c_str(), entry.pass.c_str(), entry.channel, entry.bssid.data());
         }
 
         timeout = millis();
-        return (state = RESPONSE_WAIT);
+        return (response = RESPONSE_WAIT);
 
     }
 
-    // Connected?
+    // Wait until connected ...
     if (WiFi.status() == WL_CONNECTED) {
 
         // Autoconnect only if DHCP, since it doesn't store static IP data
@@ -270,20 +422,20 @@ uint8_t JustWifi::_doSTA(uint8_t id) {
 
         WiFi.setAutoReconnect(true);
         _doCallback(MESSAGE_CONNECTED);
-        return (state = RESPONSE_OK);
+        return (response = RESPONSE_OK);
 
     }
 
-    // Check timeout
+    // ... but not longer than specified timeout
     if (millis() - timeout > _connect_timeout) {
         WiFi.enableSTA(false);
-        _doCallback(MESSAGE_CONNECT_FAILED, entry.ssid);
-        return (state = RESPONSE_FAIL);
+        _doCallback(MESSAGE_CONNECT_FAILED, entry.ssid.c_str());
+        return (response = RESPONSE_FAIL);
     }
 
-    // Still waiting
+    // When still waiting, return the same state
     _doCallback(MESSAGE_CONNECT_WAITING);
-    return state;
+    return response;
 
 }
 
@@ -293,8 +445,8 @@ bool JustWifi::_doAP() {
     if (_ap_connected) enableAP(false);
 
     // Check if Soft AP configuration defined
-    if (!_softap.ssid) {
-        _softap.ssid = strdup(_hostname);
+    if (!_softap.ssid.length()) {
+        _softap.ssid = _hostname;
     }
 
     _doCallback(MESSAGE_ACCESSPOINT_CREATING);
@@ -306,10 +458,10 @@ bool JustWifi::_doAP() {
         WiFi.softAPConfig(_softap.ip, _softap.gw, _softap.netmask);
     }
 
-    if (_softap.pass) {
-        WiFi.softAP(_softap.ssid, _softap.pass);
+    if (_softap.pass.length()) {
+        WiFi.softAP(_softap.ssid.c_str(), _softap.pass.c_str());
     } else {
-        WiFi.softAP(_softap.ssid);
+        WiFi.softAP(_softap.ssid.c_str());
     }
 
     _doCallback(MESSAGE_ACCESSPOINT_CREATED);
@@ -333,13 +485,13 @@ uint8_t JustWifi::_doScan() {
         return RESPONSE_WAIT;
     }
 
-    // Check if scanning
-    int8_t scanResult = WiFi.scanComplete();
+    // Check if still scanning ...
+    auto scanResult = WiFi.scanComplete();
     if (WIFI_SCAN_RUNNING == scanResult) {
         return RESPONSE_WAIT;
     }
 
-    // Scan finished
+    // Scan is finished at this point, reset for re-entry
     scanning = false;
 
     // Sometimes the scan fails,
@@ -349,69 +501,77 @@ uint8_t JustWifi::_doScan() {
         return RESPONSE_WAIT;
     }
 
-    // Check networks
+    // scanResult returns number of found networks
     if (0 == scanResult) {
         _doCallback(MESSAGE_NO_NETWORKS);
         return RESPONSE_FAIL;
     }
 
-    // Populate network list
-    uint8_t count = _populate(scanResult);
-
-    // Free memory
-    WiFi.scanDelete();
+    // When network is found in our list, update RSSI value
+    auto count = _populate(scanResult, (_scan_periodic_interval > 0));
 
     if (0 == count) {
         _doCallback(MESSAGE_NO_KNOWN_NETWORKS);
         return RESPONSE_FAIL;
     }
 
-    // Sort networks by RSSI
+    // Sort networks by RSSI, return the best network ID
     _currentID = _sortByRSSI();
+
+    _scan_periodic_last = millis();
+
     return RESPONSE_OK;
 
 }
 
-void JustWifi::_doCallback(justwifi_messages_t message, char * parameter) {
-    for (unsigned char i=0; i < _callbacks.size(); i++) {
-        (_callbacks[i])(message, parameter);
+void JustWifi::_doCallback(justwifi_messages_t message, const char * parameter) {
+    for (auto& cb : _callbacks) {
+        cb(message, parameter);
     }
-}
-
-String JustWifi::_MAC2String(const unsigned char* mac) {
-    char buffer[20];
-    snprintf(
-        buffer, sizeof(buffer),
-        "%02x:%02x:%02x:%02x:%02x:%02x",
-        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
-    );
-    return String(buffer);
 }
 
 void JustWifi::_machine() {
 
     #if false
-        static unsigned char previous = 0xFF;
+        static unsigned char previous = JUSTWIFI_ID_NONE;
         if (_state != previous) {
             previous = _state;
-            Serial.printf("_state: %u, WiFi.getMode(): %u\n", _state, WiFi.getMode());
+            Serial.printf("_state: %s (%u), WiFi.getMode(): %s (%u) WiFi.status(): %s (%u)\n",
+                _state_to_string(_state).c_str(), _state,
+                _wifimode_to_string(WiFi.getMode()).c_str(), WiFi.getMode(),
+                _wifistatus_to_string(WiFi.status()).c_str(), WiFi.status()
+            );
         }
     #endif
 
-    switch(_state) {
+    switch (_state) {
 
         // ---------------------------------------------------------------------
 
-        case STATE_IDLE:
+        case STATE_IDLE: {
+            bool periodic_scan = (_scan_periodic_interval && (millis() - _scan_periodic_last >= _scan_periodic_interval));
 
-            // Should we connect in STA mode?
-            if (WiFi.status() != WL_CONNECTED) {
+            if (WiFi.status() == WL_CONNECTED) {
 
+                // When scan interval is configured, launch an async scanning without disconnection
+                if (periodic_scan) {
+                    _scan_periodic_last = millis();
+                    _state = STATE_SCAN_PERIODIC_START;
+                    return;
+                }
+
+            } else {
+
+                // Try to connect when there are networks available and STA mode is enabled
                 if (_sta_enabled) {
                     if (_network_list.size() > 0) {
                         if ((0 == _timeout) || ((_reconnect_timeout > 0) && (millis() - _timeout > _reconnect_timeout))) {
-                            _currentID = 0;
-                            _state = _scan ? STATE_SCAN_START : STATE_STA_START;
+                            // When periodic scan is on, only scan again when periodic timeout expires
+                            if (_currentID == 0 || periodic_scan) {
+                                _state = _scan ? STATE_SCAN_START : STATE_STA_START;
+                            } else {
+                                _state = STATE_STA_START;
+                            }
                             return;
                         }
                     }
@@ -427,11 +587,27 @@ void JustWifi::_machine() {
 
             break;
 
+        }
+
         // ---------------------------------------------------------------------
+
+        case STATE_SCAN_PERIODIC_START:
+            _doScan();
+            _state = STATE_SCAN_PERIODIC_ONGOING;
+            break;
 
         case STATE_SCAN_START:
             _doScan();
             _state = STATE_SCAN_ONGOING;
+            break;
+
+        case STATE_SCAN_PERIODIC_ONGOING:
+            {
+                uint8_t response = _doScan();
+                if ((RESPONSE_OK == response) || (RESPONSE_FAIL == response)) {
+                    _state = STATE_IDLE;
+                }
+            }
             break;
 
         case STATE_SCAN_ONGOING:
@@ -454,14 +630,14 @@ void JustWifi::_machine() {
 
         case STATE_STA_ONGOING:
             {
-                uint8_t response = _doSTA();
+                auto response = _doSTA();
                 if (RESPONSE_OK == response) {
                     _state = STATE_STA_SUCCESS;
                 } else if (RESPONSE_FAIL == response) {
                     _state = STATE_STA_START;
                     if (_scan) {
                         _currentID = _network_list[_currentID].next;
-                        if (_currentID == 0xFF) {
+                        if (_currentID == JUSTWIFI_ID_NONE) {
                             _state = STATE_STA_FAILED;
                         }
                     } else {
@@ -510,6 +686,7 @@ void JustWifi::_machine() {
                 return;
             }
 
+            // setting status out of enum bounds to avoid default SUCCESS
             _jw_wps_status = (wps_cb_status) 5;
             if (!wifi_set_wps_cb((wps_st_cb_t) &_jw_wps_status_cb)) {
                 _state = STATE_WPS_FAILED;
@@ -526,7 +703,7 @@ void JustWifi::_machine() {
 
         case STATE_WPS_ONGOING:
             if (5 == _jw_wps_status) {
-                // Still ongoing
+                // Status is still out-of-bounds, meaning WPS has not yet finished
             } else if (WPS_CB_ST_SUCCESS == _jw_wps_status) {
                 _state = STATE_WPS_SUCCESS;
             } else {
@@ -597,6 +774,7 @@ void JustWifi::_machine() {
         case STATE_FALLBACK:
             if (!_ap_connected & _ap_fallback_enabled) _doAP();
             _timeout = millis();
+            _scan_periodic_last = _timeout - _scan_periodic_interval;
             _state = STATE_IDLE;
             break;
 
@@ -613,12 +791,8 @@ void JustWifi::_machine() {
 //------------------------------------------------------------------------------
 
 void JustWifi::cleanNetworks() {
-    for (uint8_t i = 0; i < _network_list.size(); i++) {
-        network_t entry = _network_list[i];
-        if (entry.ssid) free(entry.ssid);
-        if (entry.pass) free(entry.pass);
-    }
     _network_list.clear();
+    _currentID = 0;
 }
 
 bool JustWifi::addNetwork(
@@ -631,56 +805,36 @@ bool JustWifi::addNetwork(
     bool front
 ) {
 
+    if (!_checkSSID(ssid)) {
+        return false;
+    }
+
+    if (!_checkPass(pass)) {
+        return false;
+    }
+
     network_t new_network;
 
-    // Check SSID too long or missing
-    if (!ssid || *ssid == 0x00 || strlen(ssid) > 31) {
-        return false;
-    }
+    // Copy network SSID and PASS directly (will handle empty strings automatically)
+    new_network.ssid = ssid;
+    new_network.pass = pass;
 
-    // Check PASS too long
-    if (pass && strlen(pass) > 63) {
-        return false;
-    }
-
-    // Copy network SSID
-    new_network.ssid = strdup(ssid);
-    if (!new_network.ssid) {
-        return false;
-    }
-
-    // Copy network PASS
-    if (pass && *pass != 0x00) {
-        new_network.pass = strdup(pass);
-        if (!new_network.pass) {
-            free(new_network.ssid);
-            return false;
-        }
-    } else {
-        new_network.pass = NULL;
-    }
-
-    // Copy static config
+    // Copy static config only when every item is available
     new_network.dhcp = true;
     if (ip && gw && netmask
-        && *ip != 0x00 && *gw != 0x00 && *netmask != 0x00) {
+        && *ip != '\0' && *gw != '\0' && *netmask != '\0') {
         new_network.dhcp = false;
         new_network.ip.fromString(ip);
         new_network.gw.fromString(gw);
         new_network.netmask.fromString(netmask);
     }
-    if (dns && *dns != 0x00) {
+
+    // DNS setting is separate (?)
+    if (dns && *dns != '\0') {
         new_network.dns.fromString(dns);
     }
 
-    // Defaults
-    new_network.rssi = 0;
-    new_network.security = 0;
-    new_network.channel = 0;
-    new_network.next = 0xFF;
-    new_network.scanned = false;
-
-    // Store data
+    // Adding to the front in case we have scanning disabled, but need specific network to connect first
     if (front) {
         _network_list.insert(_network_list.begin(), new_network);
     } else {
@@ -694,7 +848,7 @@ bool JustWifi::addCurrentNetwork(bool front) {
     return addNetwork(
         WiFi.SSID().c_str(),
         WiFi.psk().c_str(),
-        NULL, NULL, NULL, NULL,
+        nullptr, nullptr, nullptr, nullptr,
         front
     );
 }
@@ -707,37 +861,22 @@ bool JustWifi::setSoftAP(
     const char * netmask
 ) {
 
-    // Check SSID too long or missing
-    if (!ssid || *ssid == 0x00 || strlen(ssid) > 31) {
+    if (!_checkSSID(ssid)) {
         return false;
     }
 
-    // Check PASS too long
-    if (pass && strlen(pass) > 63) {
+    if (!_checkPass(pass)) {
         return false;
     }
 
-    // Copy network SSID
-    if (_softap.ssid) free(_softap.ssid);
-    _softap.ssid = strdup(ssid);
-    if (!_softap.ssid) {
-        return false;
-    }
+    // Copy network SSID and PASS (SSID cannot be empty, pass will be checked at the end)
+    _softap.ssid = ssid;
+    _softap.pass = pass;
 
-    // Copy network PASS
-    if (pass && *pass != 0x00) {
-        if (_softap.pass) free(_softap.pass);
-        _softap.pass = strdup(pass);
-        if (!_softap.pass) {
-            _softap.ssid = NULL;
-            return false;
-        }
-    }
-
-    // Copy static config
+    // Copy static config only when every item is available
     _softap.dhcp = false;
     if (ip && gw && netmask
-        && *ip != 0x00 && *gw != 0x00 && *netmask != 0x00) {
+        && *ip != '\0' && *gw != '\0' && *netmask != '\0') {
         _softap.dhcp = true;
         _softap.ip.fromString(ip);
         _softap.gw.fromString(gw);
@@ -746,11 +885,12 @@ bool JustWifi::setSoftAP(
 
     if ((WiFi.getMode() & WIFI_AP) > 0) {
 
-    // https://github.com/xoseperez/justwifi/issues/4
-    if (_softap.pass) {
-        WiFi.softAP(_softap.ssid, _softap.pass);
-    } else {
-        WiFi.softAP(_softap.ssid);
+        // SDK will not update SoftAP config otherwise
+        // https://github.com/xoseperez/justwifi/issues/4
+        if (_softap.pass.length()) {
+            WiFi.softAP(_softap.ssid.c_str(), _softap.pass.c_str());
+        } else {
+            WiFi.softAP(_softap.ssid.c_str());
         }
 
     }
@@ -787,8 +927,8 @@ wl_status_t JustWifi::getStatus() {
     return WiFi.status();
 }
 
-String JustWifi::getAPSSID() {
-    return String(_softap.ssid);
+const String& JustWifi::getAPSSID() {
+    return _softap.ssid;
 }
 
 bool JustWifi::connected() {
@@ -801,6 +941,7 @@ bool JustWifi::connectable() {
 
 void JustWifi::disconnect() {
     _timeout = 0;
+    _currentID = 0;
     WiFi.disconnect();
     WiFi.enableSTA(false);
     _doCallback(MESSAGE_DISCONNECTED);
@@ -861,6 +1002,14 @@ void JustWifi::enableAPFallback(bool enabled) {
 
 void JustWifi::enableScan(bool scan) {
     _scan = scan;
+}
+
+void JustWifi::setPeriodicScanInterval(unsigned long interval) {
+    _scan_periodic_interval = interval;
+}
+
+void JustWifi::setRSSIThreshold(int8_t rssi) {
+    _scan_rssi_threshold = rssi;
 }
 
 void JustWifi::loop() {

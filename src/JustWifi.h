@@ -26,7 +26,9 @@ along with the JustWifi library.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <functional>
 #include <vector>
+
 #include <ESP8266WiFi.h>
+#include <pgmspace.h>
 
 extern "C" {
   #include "user_interface.h"
@@ -40,7 +42,12 @@ extern "C" {
 
 #define DEFAULT_CONNECT_TIMEOUT         10000
 #define DEFAULT_RECONNECT_INTERVAL      60000
+
 #define JUSTWIFI_SMARTCONFIG_TIMEOUT    60000
+#define JUSTWIFI_ID_NONE                0xFF
+
+#define JUSTWIFI_RSSI_THRESHOLD                 20
+#define JUSTWIFI_PERIODIC_SCAN_INTERVAL         (60000 * 5)
 
 #ifdef DEBUG_ESP_WIFI
 #ifdef DEBUG_ESP_PORT
@@ -52,26 +59,68 @@ extern "C" {
 #define DEBUG_WIFI_MULTI(...)
 #endif
 
-typedef struct {
-    char * ssid;
-    char * pass;
+struct BSSID_t {
+    BSSID_t();
+    BSSID_t(const BSSID_t&);
+    BSSID_t(BSSID_t&&);
+    
+    void copy(const uint8_t* data);
+
+    BSSID_t& operator=(const BSSID_t& other) = default;
+
+    uint8_t* data() {
+        return _data;
+    }
+
+    uint8_t operator[](size_t index) {
+        if ((index >= 0) && (index < 6)) {
+            return _data[index];
+        }
+        return 0;
+    }
+
+    private:
+        uint8_t _data[6];
+};
+
+struct network_cfg_t {
+    network_cfg_t();
+
+    String ssid;
+    String pass;
     bool dhcp;
-    bool scanned;
     IPAddress ip;
     IPAddress gw;
     IPAddress netmask;
     IPAddress dns;
+};
+
+struct network_t : public network_cfg_t {
+    network_t();
+
+    bool scanned;
     int32_t rssi;
     uint8_t security;
     uint8_t channel;
-    uint8_t bssid[6];
+    BSSID_t bssid;
     uint8_t next;
-} network_t;
+};
 
-typedef enum {
+struct network_scan_t {
+    String ssid;
+    int32_t rssi;
+    uint8_t security;
+    uint8_t* bssid;
+    int32_t channel;
+    bool hidden;
+};
+
+enum justwifi_states_t {
     STATE_IDLE,
     STATE_SCAN_START,
     STATE_SCAN_ONGOING,
+    STATE_SCAN_PERIODIC_START,
+    STATE_SCAN_PERIODIC_ONGOING,
     STATE_STA_START,
     STATE_STA_ONGOING,
     STATE_STA_FAILED,
@@ -85,13 +134,14 @@ typedef enum {
     STATE_SMARTCONFIG_FAILED,
     STATE_SMARTCONFIG_SUCCESS,
     STATE_FALLBACK
-} justwifi_states_t;
+};
 
-typedef enum {
+enum justwifi_messages_t {
     MESSAGE_SCANNING,
     MESSAGE_SCAN_FAILED,
     MESSAGE_NO_NETWORKS,
     MESSAGE_FOUND_NETWORK,
+    MESSAGE_FOUND_BETTER_NETWORK,
     MESSAGE_NO_KNOWN_NETWORKS,
     MESSAGE_CONNECTING,
     MESSAGE_CONNECT_WAITING,
@@ -111,9 +161,9 @@ typedef enum {
     MESSAGE_SMARTCONFIG_START,
     MESSAGE_SMARTCONFIG_SUCCESS,
     MESSAGE_SMARTCONFIG_ERROR
-} justwifi_messages_t;
+};
 
-enum {
+enum justwifi_responses_t {
     RESPONSE_START,
     RESPONSE_OK,
     RESPONSE_WAIT,
@@ -125,27 +175,26 @@ class JustWifi {
     public:
 
         JustWifi();
-        ~JustWifi();
 
-        typedef std::function<void(justwifi_messages_t, char *)> TMessageFunction;
+        using TMessageFunction = std::function<void(justwifi_messages_t message, const char * payload)>;
 
         void cleanNetworks();
         bool addCurrentNetwork(bool front = false);
         bool addNetwork(
             const char * ssid,
-            const char * pass = NULL,
-            const char * ip = NULL,
-            const char * gw = NULL,
-            const char * netmask = NULL,
-            const char * dns = NULL,
+            const char * pass = nullptr,
+            const char * ip = nullptr,
+            const char * gw = nullptr,
+            const char * netmask = nullptr,
+            const char * dns = nullptr,
             bool front = false
         );
         bool setSoftAP(
             const char * ssid,
-            const char * pass = NULL,
-            const char * ip = NULL,
-            const char * gw = NULL,
-            const char * netmask = NULL
+            const char * pass = nullptr,
+            const char * ip = nullptr,
+            const char * gw = nullptr,
+            const char * netmask = nullptr
         );
 
         void setHostname(const char * hostname);
@@ -155,7 +204,7 @@ class JustWifi {
         void subscribe(TMessageFunction fn);
 
         wl_status_t getStatus();
-        String getAPSSID();
+        const String& getAPSSID();
 
         bool connected();
         bool connectable();
@@ -167,6 +216,9 @@ class JustWifi {
         void enableSTA(bool enabled);
         void enableAP(bool enabled);
         void enableAPFallback(bool enabled);
+
+        void setPeriodicScanInterval(unsigned long interval);
+        void setRSSIThreshold(int8_t rssi);
 
         #if defined(JUSTWIFI_ENABLE_WPS)
             void startWPS();
@@ -183,34 +235,43 @@ class JustWifi {
         std::vector<network_t> _network_list;
         std::vector<TMessageFunction> _callbacks;
 
+        network_cfg_t _softap;
+
+        uint8_t _currentID;
+
         unsigned long _connect_timeout = DEFAULT_CONNECT_TIMEOUT;
         unsigned long _reconnect_timeout = DEFAULT_RECONNECT_INTERVAL;
         unsigned long _timeout = 0;
         unsigned long _start = 0;
-        uint8_t _currentID;
-        bool _scan = false;
-        char _hostname[32];
-        network_t _softap { NULL, NULL };
 
-        justwifi_states_t _state = STATE_IDLE;
+        bool _scan = false;
+        int8_t _scan_rssi_threshold = JUSTWIFI_RSSI_THRESHOLD;
+        unsigned long _scan_periodic_interval = JUSTWIFI_PERIODIC_SCAN_INTERVAL;
+        unsigned long _scan_periodic_last = 0;
+
         bool _sta_enabled = true;
         bool _ap_connected = false;
         bool _ap_fallback_enabled = true;
 
+        char _hostname[32];
+
+        justwifi_states_t _state = STATE_IDLE;
+
         bool _doAP();
         uint8_t _doScan();
-        uint8_t _doSTA(uint8_t id = 0xFF);
+        justwifi_responses_t _doSTA(uint8_t id = JUSTWIFI_ID_NONE);
 
         void _disable();
         void _machine();
-        uint8_t _populate(uint8_t networkCount);
+        uint8_t _populate(int8_t networkCount, bool keep = false);
         uint8_t _sortByRSSI();
-        String _MAC2String(const unsigned char* mac);
-        String _encodingString(uint8_t security);
-        void _doCallback(justwifi_messages_t message, char * parameter = NULL);
+        void _doCallback(justwifi_messages_t message, const char * parameter = nullptr);
+
+        bool _checkSSID(const char* ssid);
+        bool _checkPass(const char* ssid);
 
 };
 
 extern JustWifi jw;
 
-#endif
+#endif // ifndef JustWifi_h
