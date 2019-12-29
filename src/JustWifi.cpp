@@ -576,6 +576,7 @@ void JustWifi::_machine() {
                                 _state = STATE_STA_START;
                             }
                         } else {
+                            _currentID = 0;
                             _state = _scan ? STATE_SCAN_START : STATE_STA_START;
                         }
                         return;
