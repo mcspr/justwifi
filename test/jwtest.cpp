@@ -51,17 +51,6 @@ struct Timeout {
     uint32_t _timeout;
 };
 
-template <int tag>
-void status(uint32_t ts, wl_status_t st) {
-    static Timeout timeout(ts);
-    if (timeout) {
-        std::cout << "> status(" << int(st) << ")" << std::endl;
-        WiFi._status = st;
-        WiFi._rssi = -50;
-        WiFi._ssid = "TEST";
-    }
-}
-
 int main(int argc, char** argv) {
 
     WiFi.addNetworkInfo("TEST", ENC_TYPE_CCMP, -75, {0x11, 0x12, 0x13, 0x14, 0x15, 0x40}, 6, false);
