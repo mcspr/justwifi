@@ -1,6 +1,7 @@
 .PHONY: all clean JustWifi.o
 
-OBJECTS = jwtest.o Arduino.o WiFi.o IPAddress.o JustWifi.o ESP.o
+FIRMWARE_OBJ = Arduino.o WiFi.o IPAddress.o ESP.o
+OBJECTS = jwtest.o JustWifi.o
 CXXFLAGS := -g -I./ -I../src/
 CC := g++
 
@@ -12,9 +13,9 @@ clean:
 %.o: %.cpp
 	$(CC) $(CXXFLAGS) $< -std=c++17 -c -o $@
 
-JustWifi.o:
+JustWifi.o: $(FIRMWARE_OBJ)
 	$(CC) $(CXXFLAGS) -c ../src/JustWifi.cpp -o JustWifi.o
 
-jwtest: $(OBJECTS)
+jwtest: $(FIRMWARE_OBJ) $(OBJECTS)
 	$(CC) $(CXXFLAGS) $^ -lpthread -o $@
 
