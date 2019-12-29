@@ -481,7 +481,7 @@ uint8_t JustWifi::_doScan() {
 
     // If not scanning, start scan
     if (false == scanning) {
-        WiFi.disconnect();
+        //WiFi.disconnect();
         WiFi.enableSTA(true);
         WiFi.scanNetworks(true, true);
         _doCallback(MESSAGE_SCANNING);
@@ -1011,6 +1011,7 @@ void JustWifi::enableScan(bool scan) {
 
 void JustWifi::setPeriodicScanInterval(unsigned long interval) {
     _scan_periodic_interval = interval;
+    _scan_periodic_last = millis();
 }
 
 void JustWifi::setRSSIThreshold(int8_t rssi) {
