@@ -557,7 +557,7 @@ void JustWifi::_machine() {
             if (WiFi.status() == WL_CONNECTED) {
 
                 // When scan interval is configured, launch an async scanning without disconnection
-                if (periodic_scan) {
+                if (_scan && periodic_scan) {
                     _scan_periodic_last = millis();
                     _state = STATE_SCAN_PERIODIC_START;
                     return;
