@@ -176,7 +176,7 @@ class JustWifi {
 
         JustWifi();
 
-        using TMessageFunction = std::function<void(justwifi_messages_t message, const char * payload)>;
+        using TMessageFunction = std::function<void(justwifi_messages_t message, char * payload)>;
 
         void cleanNetworks();
         bool addCurrentNetwork(bool front = false);
@@ -265,7 +265,7 @@ class JustWifi {
         void _machine();
         uint8_t _populate(int8_t networkCount, bool keep = false);
         uint8_t _sortByRSSI();
-        void _doCallback(justwifi_messages_t message, const char * parameter = nullptr);
+        void _doCallback(justwifi_messages_t message, char * parameter = nullptr);
 
         bool _checkSSID(const char* ssid);
         bool _checkPass(const char* ssid);

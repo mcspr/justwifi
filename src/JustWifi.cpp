@@ -427,9 +427,10 @@ justwifi_responses_t JustWifi::_doSTA(uint8_t id) {
     }
 
     // ... but not longer than specified timeout
+    // XXX: must change _doCallback and TMessageFunction 2nd arg to `const char*`
     if (millis() - timeout > _connect_timeout) {
         WiFi.enableSTA(false);
-        _doCallback(MESSAGE_CONNECT_FAILED, entry.ssid.c_str());
+        _doCallback(MESSAGE_CONNECT_FAILED, const_cast<char*>(entry.ssid.c_str()));
         return (response = RESPONSE_FAIL);
     }
 
@@ -524,7 +525,7 @@ uint8_t JustWifi::_doScan() {
 
 }
 
-void JustWifi::_doCallback(justwifi_messages_t message, const char * parameter) {
+void JustWifi::_doCallback(justwifi_messages_t message, char * parameter) {
     for (auto& cb : _callbacks) {
         cb(message, parameter);
     }
