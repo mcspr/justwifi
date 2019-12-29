@@ -552,13 +552,12 @@ void JustWifi::_machine() {
         // ---------------------------------------------------------------------
 
         case STATE_IDLE: {
-            const bool periodic_scan = (_scan_periodic_interval && (millis() - _scan_periodic_last >= _scan_periodic_interval));
-            const bool have_networks = (_network_list.size() > 0);
+            bool periodic_scan = (_scan_periodic_interval && (millis() - _scan_periodic_last >= _scan_periodic_interval));
 
             if (WiFi.status() == WL_CONNECTED) {
 
                 // When scan interval is configured, launch an async scanning without disconnection
-                if (_scan && have_networks && periodic_scan) {
+                if (periodic_scan) {
                     _scan_periodic_last = millis();
                     _state = STATE_SCAN_PERIODIC_START;
                     return;
@@ -568,7 +567,7 @@ void JustWifi::_machine() {
 
                 // Try to connect when there are networks available and STA mode is enabled
                 if (_sta_enabled) {
-                    if (have_networks) {
+                    if (_network_list.size() > 0) {
                         if ((0 == _timeout) || ((_reconnect_timeout > 0) && (millis() - _timeout > _reconnect_timeout))) {
                             // When periodic scan is on, only scan again when periodic timeout expires
                             if (_currentID == 0 || periodic_scan) {
