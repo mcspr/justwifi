@@ -328,14 +328,14 @@ bool JustWifi::_doAP() {
         _softap.ssid = strdup(_hostname);
     }
 
-    _doCallback(MESSAGE_ACCESSPOINT_CREATING);
-
     WiFi.enableAP(true);
 
     // Configure static options
     if (_softap.dhcp) {
         WiFi.softAPConfig(_softap.ip, _softap.gw, _softap.netmask);
     }
+
+    _doCallback(MESSAGE_ACCESSPOINT_CREATING);
 
     if (_softap.pass) {
         WiFi.softAP(_softap.ssid, _softap.pass);
