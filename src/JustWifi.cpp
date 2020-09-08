@@ -47,13 +47,17 @@ void _jw_wps_status_cb(wps_cb_status status) {
 JustWifi::JustWifi() {
     _softap.ssid = NULL;
     _timeout = 0;
-    WiFi.enableAP(false);
-    WiFi.enableSTA(false);
     snprintf_P(_hostname, sizeof(_hostname), PSTR("ESP-%06X"), ESP.getChipId());
 }
 
 JustWifi::~JustWifi() {
     cleanNetworks();
+}
+
+void JustWifi::begin() {
+    WiFi.persistent(false);
+    WiFi.enableAP(false);
+    WiFi.enableSTA(false);
 }
 
 //------------------------------------------------------------------------------
@@ -223,7 +227,6 @@ uint8_t JustWifi::_doSTA(uint8_t id) {
     // No state or previous network failed
     if (RESPONSE_START == state) {
 
-        WiFi.persistent(false);
         _disable();
         WiFi.enableSTA(true);
         WiFi.hostname(_hostname);

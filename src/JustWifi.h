@@ -184,6 +184,7 @@ class JustWifi {
             void startSmartConfig();
         #endif
 
+        void begin();
         void loop();
 
     private:

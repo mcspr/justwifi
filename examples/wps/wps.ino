@@ -30,6 +30,7 @@ void setup() {
     Serial.println();
 
     // -------------------------------------------------------------------------
+    jw.begin();
 
     // Set WIFI hostname (otherwise it would be ESP-XXXXXX)
     jw.setHostname("justwifi");
