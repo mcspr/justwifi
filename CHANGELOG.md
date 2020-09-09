@@ -3,9 +3,25 @@
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [3.0.0] XXXX-XX-XX
+### Fixed
+- Don't call WiFi methods in constructor
+- Replace default hostname underscore with hyphen
+
+### Added
+- Add begin(), do initialization work there
+  This method is mandatory, update examples
+
+### Changed
+- Switch maintainer to me (@mcspr)
+- Move MESSAGE\_ACCESSPOINT\_CREATING in-between softApConfig and softAp,
+  which allows to reliably use `wifi_softap_add_dhcps_lease`
+- Call WiFi.persistent(false) as soon as possible,
+  don't wait until connection attempt
+
 ## [2.0.2] 2018-09-13
 ### Fixed
-- Check NO_EXTRA_4K_HEAP flag for WPS support on SDK 2.4.2
+- Check NO\_EXTRA\_4K\_HEAP flag for WPS support on SDK 2.4.2
 
 ## [2.0.1] 2018-06-30
 ### Fixed

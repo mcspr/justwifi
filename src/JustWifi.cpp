@@ -1,8 +1,6 @@
 /*
 
-JustWifi 2.0.0
-
-Wifi Manager for ESP8266
+JustWifi, Wifi Manager for ESP8266
 
 Copyright (C) 2016-2018 by Xose Pérez <xose dot perez at gmail dot com>
 
