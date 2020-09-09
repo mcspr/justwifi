@@ -579,7 +579,7 @@ void JustWifi::_machine() {
         case STATE_WPS_SUCCESS:
             _doCallback(MESSAGE_WPS_SUCCESS);
             wifi_wps_disable();
-            addCurrentNetwork(true);
+            addCurrentNetwork();
             _state = STATE_IDLE;
             break;
 
@@ -622,7 +622,7 @@ void JustWifi::_machine() {
 
         case STATE_SMARTCONFIG_SUCCESS:
             _doCallback(MESSAGE_SMARTCONFIG_SUCCESS);
-            addCurrentNetwork(true);
+            addCurrentNetwork();
             _state = STATE_IDLE;
             break;
 
