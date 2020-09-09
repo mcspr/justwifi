@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Call WiFi.persistent(false) as soon as possible,
   don't wait until connection attempt
 - WPS / SmartConfig found networks are no longer injected in front of the existing ones
+- Subscription callback is a simple pointer, std::function is no longer used
 
 ## [2.0.2] 2018-09-13
 ### Fixed
