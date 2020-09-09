@@ -68,8 +68,10 @@ typedef struct {
     uint8_t channel;
     uint8_t bssid[6];
     uint8_t next;
+#if JUSTWIFI_ENABLE_ENTERPRISE
     char * enterprise_username;
     char * enterprise_password;
+#endif
 } network_t;
 
 typedef enum {
@@ -134,7 +136,7 @@ class JustWifi {
         typedef std::function<void(justwifi_messages_t, char *)> TMessageFunction;
 
         void cleanNetworks();
-        bool addCurrentNetwork(bool front = false);
+        bool addCurrentNetwork();
         bool addNetwork(
             const char * ssid,
             const char * pass = NULL,
@@ -142,10 +144,19 @@ class JustWifi {
             const char * gw = NULL,
             const char * netmask = NULL,
             const char * dns = NULL,
-            bool front = false,
+        );
+#if JUSTWIFI_ENABLE_ENTERPRISE
+        bool addEnterpiseNetwork(
+            const char * ssid,
+            const char * pass = NULL,
+            const char * ip = NULL,
+            const char * gw = NULL,
+            const char * netmask = NULL,
+            const char * dns = NULL,
             const char * enterprise_username = NULL,
             const char * enterprise_password = NULL
         );
+#endif
         bool setSoftAP(
             const char * ssid,
             const char * pass = NULL,

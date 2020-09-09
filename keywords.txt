@@ -19,6 +19,7 @@ JustWifi	KEYWORD1
 
 addCurrentNetwork	KEYWORD2
 addNetwork	KEYWORD2
+addEnterpiseNetwork	KEYWORD2
 setSoftAP	KEYWORD2
 setHostname	KEYWORD2
 setConnectTimeout	KEYWORD2
