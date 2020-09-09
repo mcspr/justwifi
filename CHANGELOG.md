@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Fixed
 - Don't call WiFi methods in constructor
 - Replace default hostname underscore with hyphen
+- Compile-time check for Core 2.3.0
 - .gitignore .pio/ and .vscode/
 
 ### Added

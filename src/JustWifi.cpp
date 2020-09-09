@@ -64,17 +64,17 @@ void JustWifi::begin() {
 
 void JustWifi::_disable() {
 
-    // See https://github.com/esp8266/Arduino/issues/2186
-    if (strncmp_P(ESP.getSdkVersion(), PSTR("1.5.3"), 5) == 0) {
-        if ((WiFi.getMode() & WIFI_AP) > 0) {
-            WiFi.mode(WIFI_OFF);
-            delay(10);
-            WiFi.enableAP(true);
-        } else {
-            WiFi.mode(WIFI_OFF);
-        }
 
+#if defined(ARDUINO_ESP8266_RELEASE_2_3_0)
+    // See https://github.com/esp8266/Arduino/issues/2186
+    if ((WiFi.getMode() & WIFI_AP) > 0) {
+        WiFi.mode(WIFI_OFF);
+        delay(10);
+        WiFi.enableAP(true);
+    } else {
+        WiFi.mode(WIFI_OFF);
     }
+#endif // defined(ARDUINO_ESP8266_RELEASE_2_3_0)
 
 }
 uint8_t JustWifi::_sortByRSSI() {
