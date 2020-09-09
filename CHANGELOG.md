@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Fixed
 - Don't call WiFi methods in constructor
 - Replace default hostname underscore with hyphen
+- .gitignore .pio/ and .vscode/
 
 ### Added
 - Add begin(), do initialization work there
