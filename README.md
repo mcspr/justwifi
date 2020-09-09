@@ -1,14 +1,13 @@
 # JustWifi
 
+**Notice** this is the fork of the original [justwifi](https://github.com/xoseperez/justwifi) by **[@xoseperez](https://github.com/xoseperez)**
+
 JustWifi is a WIFI Manager library for the [Arduino Core for ESP8266][2]. The goal of the library is to manage ONLY the WIFI connection (no webserver, no mDNS,...) from code and in a reliable and flexible way.
 
 [![version](https://img.shields.io/github/v/tag/mcspr/justwifi)](CHANGELOG.md)
-[![travis](https://travis-ci.org/xoseperez/justwifi.svg?branch=master)](https://travis-ci.org/xoseperez/justwifi)
-[![codacy](https://img.shields.io/codacy/grade/4ccbea0317c4415eb2d1c562feced407/master.svg)](https://www.codacy.com/app/xoseperez/justwifi/dashboard)
+[![CI](https://github.com/mcspr/justwifi/workflows/PlatformIO%20CI/badge.svg?branch=master)](https://github.com/mcspr/justwifi/actions?query=workflow%3A%22PlatformIO+CI%22)
 [![license](https://img.shields.io/github/license/xoseperez/justwifi.svg)](LICENSE)
 <br />
-[![donate](https://img.shields.io/badge/donate-PayPal-blue.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=xose%2eperez%40gmail%2ecom&lc=US&no_note=0&currency_code=EUR&bn=PP%2dDonationsBF%3abtn_donate_LG%2egif%3aNonHostedGuest)
-[![twitter](https://img.shields.io/twitter/follow/xoseperez.svg?style=social)](https://twitter.com/intent/follow?screen_name=xoseperez)
 
 ## Features
 
