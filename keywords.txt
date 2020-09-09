@@ -36,7 +36,7 @@ enableAP	KEYWORD2
 enableAPFallback	KEYWORD2
 startWPS	KEYWORD2
 startSmartConfig	KEYWORD2
-init	KEYWORD2
+begin	KEYWORD2
 loop	KEYWORD2
 _events	KEYWORD2
 
