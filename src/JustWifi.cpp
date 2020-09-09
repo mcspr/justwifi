@@ -232,7 +232,7 @@ uint8_t JustWifi::_doSTA(uint8_t id) {
     }
 
     // Get network
-    network_t entry = _network_list[networkID];
+    auto& entry = _network_list[networkID];
 
     // No state or previous network failed
     if (RESPONSE_START == state) {
@@ -661,8 +661,7 @@ void JustWifi::_machine() {
 //------------------------------------------------------------------------------
 
 void JustWifi::cleanNetworks() {
-    for (uint8_t i = 0; i < _network_list.size(); i++) {
-        network_t entry = _network_list[i];
+    for (auto& entry : _network_list) {
         free(entry.ssid);
         free(entry.pass);
 #if JUSTWIFI_ENABLE_ENTERPRISE
