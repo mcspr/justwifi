@@ -22,17 +22,8 @@ along with the JustWifi library.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef JustWifi_h
 #define JustWifi_h
 
-#include <functional>
-#include <vector>
 #include <ESP8266WiFi.h>
-
-#ifdef JUSTWIFI_ENABLE_ENTERPRISE
-#include "wpa2_enterprise.h"
-#endif
-
-extern "C" {
-  #include "user_interface.h"
-}
+#include <vector>
 
 // Check NO_EXTRA_4K_HEAP build flag in SDK 2.4.2
 #include <core_version.h>
@@ -130,10 +121,13 @@ class JustWifi {
 
     public:
 
+        using callback_type = void(*)(justwifi_messages_t, char *);
+        using callbacks_type = std::vector<callback_type>;
+
+        using networks_type = std::vector<network_t>;
+
         JustWifi();
         ~JustWifi();
-
-        typedef std::function<void(justwifi_messages_t, char *)> TMessageFunction;
 
         void cleanNetworks();
         bool addCurrentNetwork();
@@ -170,7 +164,7 @@ class JustWifi {
         void setConnectTimeout(unsigned long ms);
         void setReconnectTimeout(unsigned long ms = DEFAULT_RECONNECT_INTERVAL);
         void resetReconnectTimeout();
-        void subscribe(TMessageFunction fn);
+        void subscribe(callback_type callback);
 
         wl_status_t getStatus();
         String getAPSSID();
@@ -199,8 +193,8 @@ class JustWifi {
 
     private:
 
-        std::vector<network_t> _network_list;
-        std::vector<TMessageFunction> _callbacks;
+        networks_type _network_list;
+        callbacks_type _callbacks;
 
         unsigned long _connect_timeout = DEFAULT_CONNECT_TIMEOUT;
         unsigned long _reconnect_timeout = DEFAULT_RECONNECT_INTERVAL;
@@ -208,11 +202,15 @@ class JustWifi {
         unsigned long _start = 0;
         uint8_t _currentID;
         bool _scan = false;
-        char _hostname[32];
+        char _hostname[33];
         network_t _softap;
 
         justwifi_states_t _state = STATE_IDLE;
         bool _sta_enabled = true;
+
+        char _ap_ssid[33] { 0 };
+        char _ap_pass[65] { 0 };
+
         bool _ap_connected = false;
         bool _ap_fallback_enabled = true;
 

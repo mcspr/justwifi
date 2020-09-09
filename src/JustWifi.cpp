@@ -20,7 +20,19 @@ along with the JustWifi library.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "JustWifi.h"
-#include <functional>
+
+#include <user_interface.h>
+#include <cstring>
+
+// -----------------------------------------------------------------------------
+// WPA2E support (no support from Arduino Core WiFi, needs manual SDK calls!)
+// -----------------------------------------------------------------------------
+
+#ifdef JUSTWIFI_ENABLE_ENTERPRISE
+
+#include <wpa2_enterprise.h>
+
+#endif
 
 // -----------------------------------------------------------------------------
 // WPS callbacks
@@ -28,9 +40,7 @@ along with the JustWifi library.  If not, see <http://www.gnu.org/licenses/>.
 
 #if defined(JUSTWIFI_ENABLE_WPS)
 
-#include "user_interface.h"
-
-wps_cb_status _jw_wps_status;
+static wps_cb_status _jw_wps_status;
 
 void _jw_wps_status_cb(wps_cb_status status) {
     _jw_wps_status = status;
@@ -151,6 +161,8 @@ uint8_t JustWifi::_populate(uint8_t networkCount) {
     uint8_t* BSSID_scan;
     int32_t chan_scan;
     bool hidden_scan;
+
+    // TODO: ...just use linked list instead of 'next'? insert order will not remain, though
 
     // Populate defined networks with scan data
     for (int8_t i = 0; i < networkCount; ++i) {
@@ -328,9 +340,9 @@ bool JustWifi::_doAP() {
     // If already created recreate
     if (_ap_connected) enableAP(false);
 
-    // Check if Soft AP configuration defined
+    // If we never set anything via setSoftAP, use default hostname as SSID
     if (!_softap.ssid) {
-        _softap.ssid = strdup(_hostname);
+        _softap.ssid = _hostname;
     }
 
     WiFi.enableAP(true);
@@ -454,7 +466,7 @@ void JustWifi::_machine() {
                 }
 
                 // Fallback
-                if (!_ap_connected & _ap_fallback_enabled) {
+                if (!_ap_connected && _ap_fallback_enabled) {
                     _state = STATE_FALLBACK;
                 }
 
@@ -631,7 +643,7 @@ void JustWifi::_machine() {
         // ---------------------------------------------------------------------
 
         case STATE_FALLBACK:
-            if (!_ap_connected & _ap_fallback_enabled) _doAP();
+            if (!_ap_connected && _ap_fallback_enabled) _doAP();
             _timeout = millis();
             _state = STATE_IDLE;
             break;
@@ -661,6 +673,26 @@ void JustWifi::cleanNetworks() {
     _network_list.clear();
 }
 
+namespace {
+
+bool _can_set_credentials(const char* ssid, const char* pass) {
+    return ((ssid && *ssid != '\0' && strlen(ssid) <= 32) && (!pass || (strlen(pass) <= 64)));
+}
+
+bool _maybe_set_dhcp(network_t& network, const char* ip, const char* gw, const char* netmask) {
+    if (ip && gw && netmask
+        && *ip != '\0' && *gw != '\0' && *netmask != '\0') {
+        network.ip.fromString(ip);
+        network.gw.fromString(gw);
+        network.netmask.fromString(netmask);
+        return true;
+    }
+
+    return false;
+}
+
+} // namespace
+
 bool JustWifi::addNetwork(
     const char * ssid,
     const char * pass,
@@ -670,56 +702,33 @@ bool JustWifi::addNetwork(
     const char * dns
 ) {
 
+    if (!_can_set_credentials(ssid, pass)) {
+        return false;
+    }
+
     network_t new_network;
 
-    // Check SSID too long or missing
-    if (!ssid || *ssid == 0x00 || strlen(ssid) > 31) {
-        return false;
-    }
+    // Copy SSID and PASS directly, as strings Arduino API expects
 
-    // Check PASS too long
-    if (pass && strlen(pass) > 63) {
-        return false;
-    }
-
-    // Copy network SSID
     new_network.ssid = strdup(ssid);
     if (!new_network.ssid) {
         return false;
     }
 
-    // Copy network PASS
-    if (pass && *pass != 0x00) {
+    if (pass && *pass != '\0') {
         new_network.pass = strdup(pass);
         if (!new_network.pass) {
             free(new_network.ssid);
             return false;
         }
-    } else {
-        new_network.pass = nullptr;
     }
 
-    // Copy static config
-    new_network.dhcp = true;
-    if (ip && gw && netmask
-        && *ip != 0x00 && *gw != 0x00 && *netmask != 0x00) {
-        new_network.dhcp = false;
-        new_network.ip.fromString(ip);
-        new_network.gw.fromString(gw);
-        new_network.netmask.fromString(netmask);
-    }
-    if (dns && *dns != 0x00) {
+    // normal network will set dhcp flag when ip, gw and netmask are not set
+    new_network.dhcp = !_maybe_set_dhcp(new_network, ip, gw, netmask);
+    if (dns && *dns != '\0') {
         new_network.dns.fromString(dns);
     }
 
-    // Defaults
-    new_network.rssi = 0;
-    new_network.security = 0;
-    new_network.channel = 0;
-    new_network.next = 0xFF;
-    new_network.scanned = false;
-
-    // Store data
     _network_list.push_back(new_network);
 
     return true;
@@ -775,52 +784,29 @@ bool JustWifi::setSoftAP(
     const char * netmask
 ) {
 
-    // Check SSID too long or missing
-    if (!ssid || *ssid == 0x00 || strlen(ssid) > 31) {
+    if (!_can_set_credentials(ssid, pass)) {
         return false;
     }
 
-    // Check PASS too long
-    if (pass && strlen(pass) > 63) {
-        return false;
+    _softap.ssid = _ap_ssid;
+    std::memcpy(_softap.ssid, ssid, std::min(sizeof(_ap_ssid), strlen(ssid) + 1));
+
+    if (pass && *pass != '\0') {
+        _softap.pass = _ap_pass;
+        std::memcpy(_softap.pass, pass, std::min(sizeof(_ap_pass), strlen(pass) + 1));
     }
 
-    // Copy network SSID
-    if (_softap.ssid) free(_softap.ssid);
-    _softap.ssid = strdup(ssid);
-    if (!_softap.ssid) {
-        return false;
-    }
-
-    // Copy network PASS
-    if (pass && *pass != 0x00) {
-        if (_softap.pass) free(_softap.pass);
-        _softap.pass = strdup(pass);
-        if (!_softap.pass) {
-            _softap.ssid = nullptr;
-            return false;
-        }
-    }
-
-    // Copy static config
-    _softap.dhcp = false;
-    if (ip && gw && netmask
-        && *ip != 0x00 && *gw != 0x00 && *netmask != 0x00) {
-        _softap.dhcp = true;
-        _softap.ip.fromString(ip);
-        _softap.gw.fromString(gw);
-        _softap.netmask.fromString(netmask);
-    }
-
-    if ((WiFi.getMode() & WIFI_AP) > 0) {
+    // softap sets dhcp flag when ip, gw and netmask are set
+    // (meaning, we will propogate those via DHCP)
+    _softap.dhcp = _maybe_set_dhcp(_softap, ip, gw, netmask);
 
     // https://github.com/xoseperez/justwifi/issues/4
-    if (_softap.pass) {
-        WiFi.softAP(_softap.ssid, _softap.pass);
-    } else {
-        WiFi.softAP(_softap.ssid);
+    if ((WiFi.getMode() & WIFI_AP) > 0) {
+        if (_softap.pass) {
+            WiFi.softAP(_softap.ssid, _softap.pass);
+        } else {
+            WiFi.softAP(_softap.ssid);
         }
-
     }
 
     return true;
@@ -843,8 +829,8 @@ void JustWifi::setHostname(const char * hostname) {
     strncpy(_hostname, hostname, sizeof(_hostname));
 }
 
-void JustWifi::subscribe(TMessageFunction fn) {
-    _callbacks.push_back(fn);
+void JustWifi::subscribe(callback_type callback) {
+    _callbacks.push_back(callback);
 }
 
 //------------------------------------------------------------------------------

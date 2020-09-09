@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Replace default hostname underscore with hyphen
 - Compile-time check for Core 2.3.0
 - .gitignore .pio/ and .vscode/
+- Limit SSID to 32 chars
+- Limit PASS to 64 chars
 
 ### Added
 - Add begin(), do initialization work there
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   which allows to reliably use `wifi_softap_add_dhcps_lease`
 - Call WiFi.persistent(false) as soon as possible,
   don't wait until connection attempt
+- WPS / SmartConfig found networks are no longer injected in front of the existing ones
 
 ## [2.0.2] 2018-09-13
 ### Fixed
