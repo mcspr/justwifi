@@ -55,22 +55,22 @@ extern "C" {
 #endif
 
 typedef struct {
-    char * ssid;
-    char * pass;
-    bool dhcp;
-    bool scanned;
+    char * ssid { nullptr };
+    char * pass { nullptr };
+    bool dhcp { false };
+    bool scanned { false };
     IPAddress ip;
     IPAddress gw;
     IPAddress netmask;
     IPAddress dns;
-    int32_t rssi;
-    uint8_t security;
-    uint8_t channel;
-    uint8_t bssid[6];
-    uint8_t next;
+    int32_t rssi { 0 };
+    uint8_t security { 0u };
+    uint8_t channel { 0u };
+    uint8_t bssid[6] { 0u };
+    uint8_t next { 0xFFu };
 #if JUSTWIFI_ENABLE_ENTERPRISE
-    char * enterprise_username;
-    char * enterprise_password;
+    char * enterprise_username { nullptr };
+    char * enterprise_password { nullptr };
 #endif
 } network_t;
 
@@ -139,30 +139,30 @@ class JustWifi {
         bool addCurrentNetwork();
         bool addNetwork(
             const char * ssid,
-            const char * pass = NULL,
-            const char * ip = NULL,
-            const char * gw = NULL,
-            const char * netmask = NULL,
-            const char * dns = NULL,
+            const char * pass = nullptr,
+            const char * ip = nullptr,
+            const char * gw = nullptr,
+            const char * netmask = nullptr,
+            const char * dns = nullptr,
         );
 #if JUSTWIFI_ENABLE_ENTERPRISE
         bool addEnterpiseNetwork(
             const char * ssid,
-            const char * pass = NULL,
-            const char * ip = NULL,
-            const char * gw = NULL,
-            const char * netmask = NULL,
-            const char * dns = NULL,
-            const char * enterprise_username = NULL,
-            const char * enterprise_password = NULL
+            const char * pass = nullptr,
+            const char * ip = nullptr,
+            const char * gw = nullptr,
+            const char * netmask = nullptr,
+            const char * dns = nullptr,
+            const char * enterprise_username = nullptr,
+            const char * enterprise_password = nullptr
         );
 #endif
         bool setSoftAP(
             const char * ssid,
-            const char * pass = NULL,
-            const char * ip = NULL,
-            const char * gw = NULL,
-            const char * netmask = NULL
+            const char * pass = nullptr,
+            const char * ip = nullptr,
+            const char * gw = nullptr,
+            const char * netmask = nullptr
         );
 
         void setHostname(const char * hostname);
@@ -208,7 +208,7 @@ class JustWifi {
         uint8_t _currentID;
         bool _scan = false;
         char _hostname[32];
-        network_t _softap { NULL, NULL };
+        network_t _softap;
 
         justwifi_states_t _state = STATE_IDLE;
         bool _sta_enabled = true;
@@ -225,7 +225,7 @@ class JustWifi {
         uint8_t _sortByRSSI();
         String _MAC2String(const unsigned char* mac);
         String _encodingString(uint8_t security);
-        void _doCallback(justwifi_messages_t message, char * parameter = NULL);
+        void _doCallback(justwifi_messages_t message, char * parameter = nullptr);
 
 };
 

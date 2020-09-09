@@ -43,7 +43,7 @@ void _jw_wps_status_cb(wps_cb_status status) {
 //------------------------------------------------------------------------------
 
 JustWifi::JustWifi() {
-    _softap.ssid = NULL;
+    _softap.ssid = nullptr;
     _timeout = 0;
     snprintf_P(_hostname, sizeof(_hostname), PSTR("ESP-%06X"), ESP.getChipId());
 }
@@ -166,7 +166,7 @@ uint8_t JustWifi::_populate(uint8_t networkCount) {
             if (ssid_scan.equals(entry->ssid)) {
 
                 // Check security
-                if ((sec_scan != ENC_TYPE_NONE) && (entry->pass == NULL)) continue;
+                if ((sec_scan != ENC_TYPE_NONE) && (entry->pass == nullptr)) continue;
 
                 // In case of several networks with the same SSID
                 // we want to get the one with the best RSSI
@@ -696,7 +696,7 @@ bool JustWifi::addNetwork(
             return false;
         }
     } else {
-        new_network.pass = NULL;
+        new_network.pass = nullptr;
     }
 
     // Copy static config
@@ -763,7 +763,7 @@ bool JustWifi::addCurrentNetwork() {
     return addNetwork(
         WiFi.SSID().c_str(),
         WiFi.psk().c_str(),
-        NULL, NULL, NULL, NULL,
+        nullptr, nullptr, nullptr, nullptr,
     );
 }
 
@@ -797,7 +797,7 @@ bool JustWifi::setSoftAP(
         if (_softap.pass) free(_softap.pass);
         _softap.pass = strdup(pass);
         if (!_softap.pass) {
-            _softap.ssid = NULL;
+            _softap.ssid = nullptr;
             return false;
         }
     }
