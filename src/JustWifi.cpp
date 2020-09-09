@@ -49,7 +49,7 @@ JustWifi::JustWifi() {
     _timeout = 0;
     WiFi.enableAP(false);
     WiFi.enableSTA(false);
-    snprintf_P(_hostname, sizeof(_hostname), PSTR("ESP_%06X"), ESP.getChipId());
+    snprintf_P(_hostname, sizeof(_hostname), PSTR("ESP-%06X"), ESP.getChipId());
 }
 
 JustWifi::~JustWifi() {
