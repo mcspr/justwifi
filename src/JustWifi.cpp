@@ -763,7 +763,7 @@ bool JustWifi::addCurrentNetwork() {
     return addNetwork(
         WiFi.SSID().c_str(),
         WiFi.psk().c_str(),
-        nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr
     );
 }
 

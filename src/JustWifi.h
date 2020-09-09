@@ -143,8 +143,9 @@ class JustWifi {
             const char * ip = nullptr,
             const char * gw = nullptr,
             const char * netmask = nullptr,
-            const char * dns = nullptr,
+            const char * dns = nullptr
         );
+
 #if JUSTWIFI_ENABLE_ENTERPRISE
         bool addEnterpiseNetwork(
             const char * ssid,
