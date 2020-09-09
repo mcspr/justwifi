@@ -27,6 +27,10 @@ along with the JustWifi library.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+#if not defined(JUSTWIFI_ENABLE_SMARTCONFIG)
+#error "Do not forget to use `build_flags = -DJUSTWIFI_ENABLE_SMARTCONFIG`!"
+#endif
+
 #include <JustWifi.h>
 
 void setup() {
