@@ -14,6 +14,7 @@ for board in d1_mini ; do
         pio ci --board=$board --lib="."
     env PLATFORMIO_CI_SRC=examples/wps PLATFORMIO_BUILD_FLAGS='-DJUSTWIFI_ENABLE_WPS' \
         pio ci --board=$board --lib="."
-    # TODO: examples/enterpise is missing
+    env PLATFORMIO_CI_SRC=examples/enterpise PLATFORMIO_BUILD_FLAGS='-DJUSTWIFI_ENABLE_ENTERPRISE' \
+        pio ci --board=$board --lib="."
 done
 

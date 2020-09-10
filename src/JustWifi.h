@@ -121,6 +121,9 @@ class JustWifi {
 
     public:
 
+        static constexpr size_t SsidSizeMax { 32u };
+        static constexpr size_t PassphraseSizeMax { 64u };
+
         using callback_type = void(*)(justwifi_messages_t, char *);
         using callbacks_type = std::vector<callback_type>;
 
@@ -141,15 +144,14 @@ class JustWifi {
         );
 
 #if JUSTWIFI_ENABLE_ENTERPRISE
-        bool addEnterpiseNetwork(
+        bool addEnterpriseNetwork(
             const char * ssid,
-            const char * pass = nullptr,
+            const char * enterprise_username = nullptr,
+            const char * enterprise_password = nullptr,
             const char * ip = nullptr,
             const char * gw = nullptr,
             const char * netmask = nullptr,
-            const char * dns = nullptr,
-            const char * enterprise_username = nullptr,
-            const char * enterprise_password = nullptr
+            const char * dns = nullptr
         );
 #endif
         bool setSoftAP(

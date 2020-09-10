@@ -74,7 +74,6 @@ void JustWifi::begin() {
 
 void JustWifi::_disable() {
 
-
 #if defined(ARDUINO_ESP8266_RELEASE_2_3_0)
     // See https://github.com/esp8266/Arduino/issues/2186
     if ((WiFi.getMode() & WIFI_AP) > 0) {
@@ -87,6 +86,7 @@ void JustWifi::_disable() {
 #endif // defined(ARDUINO_ESP8266_RELEASE_2_3_0)
 
 }
+
 uint8_t JustWifi::_sortByRSSI() {
 
     bool first = true;
@@ -150,9 +150,9 @@ uint8_t JustWifi::_populate(uint8_t networkCount) {
     uint8_t count = 0;
 
     // Reset RSSI to disable networks that have disappeared
-    for (uint8_t j = 0; j < _network_list.size(); j++) {
-        _network_list[j].rssi = 0;
-        _network_list[j].scanned = false;
+    for (auto& entry : _network_list) {
+        entry.rssi = 0;
+        entry.scanned = false;
     }
 
     String ssid_scan;
@@ -270,12 +270,30 @@ uint8_t JustWifi::_doSTA(uint8_t id) {
 
         // We need to manually do the connection, without WiFi.begin()
         if (entry.enterprise_username && entry.enterprise_password) {
-            struct station_config wifi_config;
-            memset(&wifi_config, 0, sizeof(wifi_config));
-            strcpy((char*)wifi_config.ssid, entry.ssid);
+            station_config wifi_config{};
+
+            // c/p from ESP8266WiFiSTA
+            // since we never pass along the real SSID size, we depend on '\0' < 32 and no '\0' when exactly 32
+            if (SsidSizeMax == strlen(entry.ssid)) {
+                std::memcpy(reinterpret_cast<char*>(wifi_config.ssid), entry.ssid, SsidSizeMax);
+            } else {
+                std::strcpy(reinterpret_cast<char*>(wifi_config.ssid), entry.ssid);
+            }
+
             wifi_config.bssid_set = 0;
+            if (entry.channel) {
+                wifi_config.bssid_set = 1;
+                std::memcpy(reinterpret_cast<uint8_t*>(wifi_config.bssid), entry.bssid, sizeof(entry.bssid));
+            }
+
             *wifi_config.password = 0;
 
+            // TODO: from ESP8266WiFiSTA, we see following calls around most of these funcs
+            // > ETS_UART_INTR_DISABLE();
+            // > ... call something() ...
+            // > ETS_UART_INTR_ENABLE();
+            // Do we need those? e.g., nodemcu-firmware code does not bother with this lock:
+            // e.g. https://github.com/nodemcu/nodemcu-firmware/blob/...branch.../app/modules/wifi.c
             wifi_set_opmode(STATION_MODE);
             wifi_station_set_config_current(&wifi_config);
             wifi_station_set_enterprise_disable_time_check(1);
@@ -289,6 +307,9 @@ uint8_t JustWifi::_doSTA(uint8_t id) {
             wifi_station_set_enterprise_password((uint8_t*)entry.enterprise_password, strlen(entry.enterprise_password));
 
             wifi_station_connect();
+            if (entry.channel) {
+                wifi_set_channel(entry.channel);
+            }
 
             // We don't (?) need identity structs in RAM anymore
             wifi_station_clear_enterprise_identity();
@@ -299,10 +320,10 @@ uint8_t JustWifi::_doSTA(uint8_t id) {
         } else
 #endif
 
-        if (entry.channel == 0) {
-            WiFi.begin(entry.ssid, entry.pass);
-        } else {
+        if (entry.channel) {
             WiFi.begin(entry.ssid, entry.pass, entry.channel, entry.bssid);
+        } else {
+            WiFi.begin(entry.ssid, entry.pass);
         }
 
         timeout = millis();
@@ -675,7 +696,7 @@ void JustWifi::cleanNetworks() {
 namespace {
 
 bool _can_set_credentials(const char* ssid, const char* pass) {
-    return ((ssid && *ssid != '\0' && strlen(ssid) <= 32) && (!pass || (strlen(pass) <= 64)));
+    return ((ssid && *ssid != '\0' && strlen(ssid) <= JustWifi::SsidSizeMax) && (!pass || (strlen(pass) <= JustWifi::PassphraseSizeMax)));
 }
 
 bool _maybe_set_dhcp(network_t& network, const char* ip, const char* gw, const char* netmask) {
@@ -738,13 +759,12 @@ bool JustWifi::addNetwork(
 
 bool JustWifi::addEnterpriseNetwork(
     const char * ssid,
-    const char * pass,
+    const char * enterprise_username,
+    const char * enterprise_password,
     const char * ip,
     const char * gw,
     const char * netmask,
-    const char * dns,
-    const char * enterprise_username,
-    const char * enterprise_password
+    const char * dns
 ) {
     if (!enterprise_username \
         || !enterprise_password \
@@ -754,7 +774,7 @@ bool JustWifi::addEnterpriseNetwork(
         return false;
     }
 
-    if (!addNetwork(ssid, pass, ip, gw, netmask, dns)) {
+    if (!addNetwork(ssid, nullptr, ip, gw, netmask, dns)) {
         return false;
     }
 
