@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 - Add begin(), do initialization work there
   This method is mandatory, update examples
+- Add addEnterpriseNetwork
 
 ### Changed
 - Switch maintainer to me (@mcspr)
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   don't wait until connection attempt
 - WPS / SmartConfig found networks are no longer injected in front of the existing ones
 - Subscription callback is a simple pointer, std::function is no longer used
+- Added networks order is no longer maintained when switching from scan to no-scan mode
 
 ## [2.0.2] 2018-09-13
 ### Fixed

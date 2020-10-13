@@ -23,7 +23,8 @@ along with the JustWifi library.  If not, see <http://www.gnu.org/licenses/>.
 #define JustWifi_h
 
 #include <ESP8266WiFi.h>
-#include <vector>
+#include <forward_list>
+#include <list>
 
 // Check NO_EXTRA_4K_HEAP build flag in SDK 2.4.2
 #include <core_version.h>
@@ -58,7 +59,6 @@ typedef struct {
     uint8_t security { 0u };
     uint8_t channel { 0u };
     uint8_t bssid[6] { 0u };
-    uint8_t next { 0xFFu };
 #if JUSTWIFI_ENABLE_ENTERPRISE
     char * enterprise_username { nullptr };
     char * enterprise_password { nullptr };
@@ -125,9 +125,9 @@ class JustWifi {
         static constexpr size_t PassphraseSizeMax { 64u };
 
         using callback_type = void(*)(justwifi_messages_t, char *);
-        using callbacks_type = std::vector<callback_type>;
+        using callbacks_type = std::forward_list<callback_type>;
 
-        using networks_type = std::vector<network_t>;
+        using networks_type = std::list<network_t>;
 
         JustWifi();
         ~JustWifi();
@@ -194,15 +194,15 @@ class JustWifi {
         void loop();
 
     private:
+        callbacks_type _callbacks;
 
         networks_type _network_list;
-        callbacks_type _callbacks;
+        networks_type::iterator _current;
 
         unsigned long _connect_timeout = DEFAULT_CONNECT_TIMEOUT;
         unsigned long _reconnect_timeout = DEFAULT_RECONNECT_INTERVAL;
         unsigned long _timeout = 0;
         unsigned long _start = 0;
-        uint8_t _currentID;
         bool _scan = false;
         char _hostname[33];
         network_t _softap;
@@ -218,12 +218,11 @@ class JustWifi {
 
         bool _doAP();
         uint8_t _doScan();
-        uint8_t _doSTA(uint8_t id = 0xFF);
+        uint8_t _doSTA(networks_type::iterator);
 
         void _disable();
         void _machine();
         uint8_t _populate(uint8_t networkCount);
-        uint8_t _sortByRSSI();
         String _MAC2String(const unsigned char* mac);
         String _encodingString(uint8_t security);
         void _doCallback(justwifi_messages_t message, char * parameter = nullptr);

@@ -52,9 +52,9 @@ void _jw_wps_status_cb(wps_cb_status status) {
 // CONSTRUCTOR
 //------------------------------------------------------------------------------
 
-JustWifi::JustWifi() {
-    _softap.ssid = nullptr;
-    _timeout = 0;
+JustWifi::JustWifi() :
+    _current(_network_list.end())
+{
     snprintf_P(_hostname, sizeof(_hostname), PSTR("ESP-%06X"), ESP.getChipId());
 }
 
@@ -87,56 +87,6 @@ void JustWifi::_disable() {
 
 }
 
-uint8_t JustWifi::_sortByRSSI() {
-
-    bool first = true;
-    uint8_t bestID = 0xFF;
-
-    for (uint8_t i = 0; i < _network_list.size(); i++) {
-
-        network_t * entry = &_network_list[i];
-
-        // if no data skip
-        if (entry->rssi == 0) continue;
-
-        // Empty list
-        if (first) {
-            first = false;
-            bestID = i;
-            entry->next = 0xFF;
-
-        // The best so far
-        } else if (entry->rssi > _network_list[bestID].rssi) {
-            entry->next = bestID;
-            bestID = i;
-
-        // Walk the list
-        } else {
-
-            network_t * current = &_network_list[bestID];
-            while (current->next != 0xFF) {
-                if (entry->rssi > _network_list[current->next].rssi) {
-                    entry->next = current->next;
-                    current->next = i;
-                    break;
-                }
-                current = &_network_list[current->next];
-            }
-
-            // Place it the last
-            if (current->next == 0xFF) {
-                current->next = i;
-                entry->next = 0xFF;
-            }
-
-        }
-
-    }
-
-    return bestID;
-
-}
-
 String JustWifi::_encodingString(uint8_t security) {
     if (security == ENC_TYPE_WEP) return String("WEP ");
     if (security == ENC_TYPE_TKIP) return String("WPA ");
@@ -162,8 +112,6 @@ uint8_t JustWifi::_populate(uint8_t networkCount) {
     int32_t chan_scan;
     bool hidden_scan;
 
-    // TODO: ...just use linked list instead of 'next'? insert order will not remain, though
-
     // Populate defined networks with scan data
     for (int8_t i = 0; i < networkCount; ++i) {
 
@@ -171,24 +119,21 @@ uint8_t JustWifi::_populate(uint8_t networkCount) {
 
         bool known = false;
 
-        for (uint8_t j = 0; j < _network_list.size(); j++) {
-
-            network_t * entry = &_network_list[j];
-
-            if (ssid_scan.equals(entry->ssid)) {
+        for (auto& entry : _network_list) {
+            if (ssid_scan.equals(entry.ssid)) {
 
                 // Check security
-                if ((sec_scan != ENC_TYPE_NONE) && (entry->pass == nullptr)) continue;
+                if ((sec_scan != ENC_TYPE_NONE) && (entry.pass == nullptr)) continue;
 
                 // In case of several networks with the same SSID
                 // we want to get the one with the best RSSI
                 // Thanks to Robert (robi772 @ bitbucket.org)
-                if (entry->rssi < rssi_scan || entry->rssi == 0) {
-                    entry->rssi = rssi_scan;
-                    entry->security = sec_scan;
-                    entry->channel = chan_scan;
-                    entry->scanned = true;
-                    memcpy((void*) &entry->bssid, (void*) BSSID_scan, sizeof(entry->bssid));
+                if (entry.rssi < rssi_scan || entry.rssi == 0) {
+                    entry.rssi = rssi_scan;
+                    entry.security = sec_scan;
+                    entry.channel = chan_scan;
+                    entry.scanned = true;
+                    std::memcpy(&entry.bssid, BSSID_scan, sizeof(entry.bssid));
                 }
 
                 count++;
@@ -215,24 +160,31 @@ uint8_t JustWifi::_populate(uint8_t networkCount) {
 
     }
 
+    _network_list.sort([](const network_t& lhs, const network_t& rhs) {
+        return (lhs.rssi && rhs.rssi) ? lhs.rssi > rhs.rssi : false;
+    });
+
     return count;
 
 }
 
-uint8_t JustWifi::_doSTA(uint8_t id) {
+uint8_t JustWifi::_doSTA(networks_type::iterator it) {
 
-    static uint8_t networkID;
-    static uint8_t state = RESPONSE_START;
-    static unsigned long timeout;
+    static networks_type::iterator network { _network_list.end() };
+    static uint8_t state { RESPONSE_START };
+    static unsigned long timeout { 0ul };
 
     // Reset connection process
-    if (id != 0xFF) {
+    if (network != it) {
         state = RESPONSE_START;
-        networkID = id;
+        network = it;
     }
 
-    // Get network
-    auto& entry = _network_list[networkID];
+    if (network == _network_list.end()) {
+        return (state = RESPONSE_FAIL);
+    }
+
+    auto& entry = *network;
 
     // No state or previous network failed
     if (RESPONSE_START == state) {
@@ -427,7 +379,7 @@ uint8_t JustWifi::_doScan() {
     // Populate network list
     uint8_t count = _populate(scanResult);
 
-    // Free memory
+    // Free memory, since the Core will keep it otherwise
     WiFi.scanDelete();
 
     if (0 == count) {
@@ -435,15 +387,13 @@ uint8_t JustWifi::_doScan() {
         return RESPONSE_FAIL;
     }
 
-    // Sort networks by RSSI
-    _currentID = _sortByRSSI();
     return RESPONSE_OK;
 
 }
 
 void JustWifi::_doCallback(justwifi_messages_t message, char * parameter) {
-    for (unsigned char i=0; i < _callbacks.size(); i++) {
-        (_callbacks[i])(message, parameter);
+    for (auto& callback : _callbacks) {
+        callback(message, parameter);
     }
 }
 
@@ -477,9 +427,9 @@ void JustWifi::_machine() {
             if (WiFi.status() != WL_CONNECTED) {
 
                 if (_sta_enabled) {
-                    if (_network_list.size() > 0) {
+                    if (_network_list.size()) {
                         if ((0 == _timeout) || ((_reconnect_timeout > 0) && (millis() - _timeout > _reconnect_timeout))) {
-                            _currentID = 0;
+                            _current = _network_list.begin();
                             _state = _scan ? STATE_SCAN_START : STATE_STA_START;
                             return;
                         }
@@ -517,29 +467,30 @@ void JustWifi::_machine() {
         // ---------------------------------------------------------------------
 
         case STATE_STA_START:
-            _doSTA(_currentID);
+            _doSTA(_current);
             _state = STATE_STA_ONGOING;
             break;
 
         case STATE_STA_ONGOING:
-            {
-                uint8_t response = _doSTA();
-                if (RESPONSE_OK == response) {
-                    _state = STATE_STA_SUCCESS;
-                } else if (RESPONSE_FAIL == response) {
-                    _state = STATE_STA_START;
-                    if (_scan) {
-                        _currentID = _network_list[_currentID].next;
-                        if (_currentID == 0xFF) {
-                            _state = STATE_STA_FAILED;
-                        }
-                    } else {
-                        _currentID++;
-                        if (_currentID == _network_list.size()) {
-                            _state = STATE_STA_FAILED;
-                        }
-                    }
+            switch (_doSTA(_current)) {
+            case RESPONSE_OK:
+                _state = STATE_STA_SUCCESS;
+                break;
+            case RESPONSE_FAIL:
+                if (_current == _network_list.end()) {
+                    _state = STATE_STA_FAILED;
+                    break;
                 }
+
+                _state = STATE_STA_START;
+                std::advance(_current, 1);
+                if (_current == _network_list.end()) {
+                    _state = STATE_STA_FAILED;
+                }
+                break;
+            case RESPONSE_START:
+            case RESPONSE_WAIT:
+                break;
             }
             break;
 
@@ -849,7 +800,7 @@ void JustWifi::setHostname(const char * hostname) {
 }
 
 void JustWifi::subscribe(callback_type callback) {
-    _callbacks.push_back(callback);
+    _callbacks.push_front(callback);
 }
 
 //------------------------------------------------------------------------------
