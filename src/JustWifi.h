@@ -46,9 +46,22 @@ along with the JustWifi library.  If not, see <http://www.gnu.org/licenses/>.
 #define DEBUG_WIFI_MULTI(...)
 #endif
 
-typedef struct {
-    char * ssid { nullptr };
-    char * pass { nullptr };
+struct softap_t {
+    String ssid;
+    String pass;
+    bool dhcp { false };
+    IPAddress ip;
+    IPAddress gw;
+    IPAddress netmask;
+    IPAddress dns;
+};
+
+struct network_t {
+    String ssid;
+    String pass;
+#if JUSTWIFI_ENABLE_ENTERPRISE
+    String identity;
+#endif
     bool dhcp { false };
     bool scanned { false };
     IPAddress ip;
@@ -59,11 +72,7 @@ typedef struct {
     uint8_t security { 0u };
     uint8_t channel { 0u };
     uint8_t bssid[6] { 0u };
-#if JUSTWIFI_ENABLE_ENTERPRISE
-    char * enterprise_username { nullptr };
-    char * enterprise_password { nullptr };
-#endif
-} network_t;
+};
 
 typedef enum {
     STATE_IDLE,
@@ -133,7 +142,7 @@ class JustWifi {
         ~JustWifi();
 
         void cleanNetworks();
-        bool addCurrentNetwork();
+        void addCurrentNetwork();
         bool addNetwork(
             const char * ssid,
             const char * pass = nullptr,
@@ -146,8 +155,8 @@ class JustWifi {
 #if JUSTWIFI_ENABLE_ENTERPRISE
         bool addEnterpriseNetwork(
             const char * ssid,
-            const char * enterprise_username = nullptr,
-            const char * enterprise_password = nullptr,
+            const char * identity = nullptr,
+            const char * pass = nullptr,
             const char * ip = nullptr,
             const char * gw = nullptr,
             const char * netmask = nullptr,
@@ -169,7 +178,7 @@ class JustWifi {
         void subscribe(callback_type callback);
 
         wl_status_t getStatus();
-        String getAPSSID();
+        const String& getAPSSID() const;
 
         bool connected();
         bool connectable();
@@ -205,14 +214,11 @@ class JustWifi {
         unsigned long _start = 0;
         bool _scan = false;
         char _hostname[33];
-        network_t _softap;
 
         justwifi_states_t _state = STATE_IDLE;
         bool _sta_enabled = true;
 
-        char _ap_ssid[33] { 0 };
-        char _ap_pass[65] { 0 };
-
+        softap_t _softap;
         bool _ap_connected = false;
         bool _ap_fallback_enabled = true;
 

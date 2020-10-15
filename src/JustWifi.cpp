@@ -120,7 +120,7 @@ uint8_t JustWifi::_populate(uint8_t networkCount) {
         bool known = false;
 
         for (auto& entry : _network_list) {
-            if (ssid_scan.equals(entry.ssid)) {
+            if (ssid_scan == entry.ssid) {
 
                 // Check security
                 if ((sec_scan != ENC_TYPE_NONE) && (entry.pass == nullptr)) continue;
@@ -208,10 +208,10 @@ uint8_t JustWifi::_doSTA(networks_type::iterator it) {
                     entry.channel,
                     entry.rssi,
                     _encodingString(entry.security).c_str(),
-                    entry.ssid
+                    entry.ssid.c_str()
                 );
             } else {
-                snprintf_P(buffer, sizeof(buffer), PSTR("SSID: %s"), entry.ssid);
+                snprintf_P(buffer, sizeof(buffer), PSTR("SSID: %s"), entry.ssid.c_str());
             }
 		    _doCallback(MESSAGE_CONNECTING, buffer);
         }
@@ -221,15 +221,15 @@ uint8_t JustWifi::_doSTA(networks_type::iterator it) {
         // https://github.com/xoseperez/justwifi/pull/18
 
         // We need to manually do the connection, without WiFi.begin()
-        if (entry.enterprise_username && entry.enterprise_password) {
+        if (entry.identity.length() && entry.pass.length()) {
             station_config wifi_config{};
 
             // c/p from ESP8266WiFiSTA
             // since we never pass along the real SSID size, we depend on '\0' < 32 and no '\0' when exactly 32
-            if (SsidSizeMax == strlen(entry.ssid)) {
-                std::memcpy(reinterpret_cast<char*>(wifi_config.ssid), entry.ssid, SsidSizeMax);
+            if (SsidSizeMax == entry.ssid.length()) {
+                std::memcpy(reinterpret_cast<char*>(wifi_config.ssid), entry.ssid.c_str(), SsidSizeMax);
             } else {
-                std::strcpy(reinterpret_cast<char*>(wifi_config.ssid), entry.ssid);
+                std::strcpy(reinterpret_cast<char*>(wifi_config.ssid), entry.ssid.c_str());
             }
 
             wifi_config.bssid_set = 0;
@@ -298,7 +298,11 @@ uint8_t JustWifi::_doSTA(networks_type::iterator it) {
     // Check timeout
     if (millis() - timeout > _connect_timeout) {
         WiFi.enableSTA(false);
-        _doCallback(MESSAGE_CONNECT_FAILED, entry.ssid);
+        // XXX temporary XXX: callback api accepts 'char*'. need to rework either as:
+        // - 'const char*' (obviously)
+        // - 'void*' + 'size' a-la esp-idf's esp_event, pass any data but have C-like API
+        // - 'JustWifiMessage*' struct, since we can also supply different payloads (like this the most)
+        _doCallback(MESSAGE_CONNECT_FAILED, const_cast<char*>(entry.ssid.c_str()));
         return (state = RESPONSE_FAIL);
     }
 
@@ -314,7 +318,7 @@ bool JustWifi::_doAP() {
     if (_ap_connected) enableAP(false);
 
     // If we never set anything via setSoftAP, use default hostname as SSID
-    if (!_softap.ssid) {
+    if (!_softap.ssid.length()) {
         _softap.ssid = _hostname;
     }
 
@@ -326,12 +330,7 @@ bool JustWifi::_doAP() {
     }
 
     _doCallback(MESSAGE_ACCESSPOINT_CREATING);
-
-    if (_softap.pass) {
-        WiFi.softAP(_softap.ssid, _softap.pass);
-    } else {
-        WiFi.softAP(_softap.ssid);
-    }
+    WiFi.softAP(_softap.ssid, _softap.pass);
 
     _doCallback(MESSAGE_ACCESSPOINT_CREATED);
 
@@ -633,24 +632,13 @@ void JustWifi::_machine() {
 //------------------------------------------------------------------------------
 
 void JustWifi::cleanNetworks() {
-    for (auto& entry : _network_list) {
-        free(entry.ssid);
-        free(entry.pass);
-#if JUSTWIFI_ENABLE_ENTERPRISE
-        free(entry.enterprise_username);
-        free(entry.enterprise_password);
-#endif
-    }
     _network_list.clear();
 }
 
 namespace {
 
-bool _can_set_credentials(const char* ssid, const char* pass) {
-    return ((ssid && *ssid != '\0' && strlen(ssid) <= JustWifi::SsidSizeMax) && (!pass || (strlen(pass) <= JustWifi::PassphraseSizeMax)));
-}
-
-bool _maybe_set_dhcp(network_t& network, const char* ip, const char* gw, const char* netmask) {
+template <typename T>
+bool _maybe_set_dhcp(T& network, const char* ip, const char* gw, const char* netmask) {
     if (ip && gw && netmask
         && *ip != '\0' && *gw != '\0' && *netmask != '\0') {
         network.ip.fromString(ip);
@@ -673,36 +661,27 @@ bool JustWifi::addNetwork(
     const char * dns
 ) {
 
-    if (!_can_set_credentials(ssid, pass)) {
-        return false;
-    }
+    if ((ssid && *ssid != '\0' && strlen(ssid) <= JustWifi::SsidSizeMax) \
+            && (!pass || (strlen(pass) <= JustWifi::PassphraseSizeMax)))
+    {
+        network_t new_network;
 
-    network_t new_network;
+        // Copy SSID and PASS directly, as strings Arduino API expects
+        new_network.ssid = ssid;
+        new_network.pass = pass;
 
-    // Copy SSID and PASS directly, as strings Arduino API expects
-
-    new_network.ssid = strdup(ssid);
-    if (!new_network.ssid) {
-        return false;
-    }
-
-    if (pass && *pass != '\0') {
-        new_network.pass = strdup(pass);
-        if (!new_network.pass) {
-            free(new_network.ssid);
-            return false;
+        // normal network will set dhcp flag when ip, gw and netmask are not set
+        new_network.dhcp = !_maybe_set_dhcp(new_network, ip, gw, netmask);
+        if (dns && *dns != '\0') {
+            new_network.dns.fromString(dns);
         }
+
+        _network_list.push_back(std::move(new_network));
+
+        return true;
     }
 
-    // normal network will set dhcp flag when ip, gw and netmask are not set
-    new_network.dhcp = !_maybe_set_dhcp(new_network, ip, gw, netmask);
-    if (dns && *dns != '\0') {
-        new_network.dns.fromString(dns);
-    }
-
-    _network_list.push_back(new_network);
-
-    return true;
+    return false;
 
 }
 
@@ -710,18 +689,14 @@ bool JustWifi::addNetwork(
 
 bool JustWifi::addEnterpriseNetwork(
     const char * ssid,
-    const char * enterprise_username,
-    const char * enterprise_password,
+    const char * identity,
+    const char * pass,
     const char * ip,
     const char * gw,
     const char * netmask,
     const char * dns
 ) {
-    if (!enterprise_username \
-        || !enterprise_password \
-        || *enterprise_username == '\0' \
-        || *enterprise_password == '\0'
-    ) {
+    if (!identity || !pass || *identity == '\0' || *pass == '\0') {
         return false;
     }
 
@@ -730,20 +705,17 @@ bool JustWifi::addEnterpriseNetwork(
     }
 
     auto& network = _network_list.back();
-    network.enterprise_username = strdup(enterprise_username);
-    network.enterprise_password = strdup(enterprise_password);
+    network.identity = identity;
+    network.pass = pass;
 
     return true;
 }
 
 #endif // JUSTWIFI_ENABLE_ENTERPRISE
 
-bool JustWifi::addCurrentNetwork() {
-    return addNetwork(
-        WiFi.SSID().c_str(),
-        WiFi.psk().c_str(),
-        nullptr, nullptr, nullptr, nullptr
-    );
+void JustWifi::addCurrentNetwork() {
+    network_t network { WiFi.SSID(), WiFi.psk() };
+    _network_list.push_front(std::move(network));
 }
 
 bool JustWifi::setSoftAP(
@@ -754,32 +726,23 @@ bool JustWifi::setSoftAP(
     const char * netmask
 ) {
 
-    if (!_can_set_credentials(ssid, pass)) {
-        return false;
+    // TODO: note that current Core can only setup SSID up to 31 bytes
+    if ((ssid && *ssid != '\0' && strlen(ssid) <= (JustWifi::SsidSizeMax - 1)) \
+            && (!pass || (strlen(pass) <= JustWifi::PassphraseSizeMax)))
+    {
+        _softap.ssid = ssid;
+        _softap.pass = pass;
+
+        // softap sets dhcp flag when ip, gw and netmask are set
+        // (meaning, we will propogate those via DHCP)
+        _softap.dhcp = _maybe_set_dhcp(_softap, ip, gw, netmask);
+
+        // https://github.com/xoseperez/justwifi/issues/4
+        return ((WiFi.getMode() & WIFI_AP) > 0) && WiFi.softAP(_softap.ssid, _softap.pass);
+
     }
 
-    _softap.ssid = _ap_ssid;
-    std::memcpy(_softap.ssid, ssid, std::min(sizeof(_ap_ssid), strlen(ssid) + 1));
-
-    if (pass && *pass != '\0') {
-        _softap.pass = _ap_pass;
-        std::memcpy(_softap.pass, pass, std::min(sizeof(_ap_pass), strlen(pass) + 1));
-    }
-
-    // softap sets dhcp flag when ip, gw and netmask are set
-    // (meaning, we will propogate those via DHCP)
-    _softap.dhcp = _maybe_set_dhcp(_softap, ip, gw, netmask);
-
-    // https://github.com/xoseperez/justwifi/issues/4
-    if ((WiFi.getMode() & WIFI_AP) > 0) {
-        if (_softap.pass) {
-            WiFi.softAP(_softap.ssid, _softap.pass);
-        } else {
-            WiFi.softAP(_softap.ssid);
-        }
-    }
-
-    return true;
+    return false;
 
 }
 
@@ -811,8 +774,8 @@ wl_status_t JustWifi::getStatus() {
     return WiFi.status();
 }
 
-String JustWifi::getAPSSID() {
-    return String(_softap.ssid);
+const String& JustWifi::getAPSSID() const {
+    return _softap.ssid;
 }
 
 bool JustWifi::connected() {
