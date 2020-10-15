@@ -224,7 +224,7 @@ uint8_t JustWifi::_doSTA(networks_type::iterator it) {
         // https://github.com/xoseperez/justwifi/pull/18
 
         // We need to manually do the connection, without WiFi.begin()
-        if (entry.identity.length() && entry.pass.length()) {
+        if (entry.username.length()) {
             station_config wifi_config{};
 
             // c/p from ESP8266WiFiSTA
@@ -257,9 +257,10 @@ uint8_t JustWifi::_doSTA(networks_type::iterator it) {
             wifi_station_set_wpa2_enterprise_auth(1);
 
             // Note: this is safe on ESP b/c we use -funsigned-char
-            wifi_station_set_enterprise_identity((uint8_t*)entry.enterprise_username, strlen(entry.enterprise_username));
-            wifi_station_set_enterprise_username((uint8_t*)entry.enterprise_username, strlen(entry.enterprise_username));
-            wifi_station_set_enterprise_password((uint8_t*)entry.enterprise_password, strlen(entry.enterprise_password));
+            // Note2: right now username == (outer) identity, it might matter in some setups?
+            wifi_station_set_enterprise_identity((uint8_t*)(entry.username.c_str()), entry.username.length());
+            wifi_station_set_enterprise_username((uint8_t*)(entry.username.c_str()), entry.username.length());
+            wifi_station_set_enterprise_password((uint8_t*)(entry.pass.c_str()), entry.pass.length());
 
             wifi_station_connect();
             if (entry.channel) {
@@ -692,14 +693,14 @@ bool JustWifi::addNetwork(
 
 bool JustWifi::addEnterpriseNetwork(
     const char * ssid,
-    const char * identity,
+    const char * username,
     const char * pass,
     const char * ip,
     const char * gw,
     const char * netmask,
     const char * dns
 ) {
-    if (!identity || !pass || *identity == '\0' || *pass == '\0') {
+    if (!username || !pass || *username == '\0' || *pass == '\0') {
         return false;
     }
 
@@ -708,7 +709,7 @@ bool JustWifi::addEnterpriseNetwork(
     }
 
     auto& network = _network_list.back();
-    network.identity = identity;
+    network.username = username;
     network.pass = pass;
 
     return true;

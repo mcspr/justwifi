@@ -60,7 +60,7 @@ struct network_t {
     String ssid;
     String pass;
 #if JUSTWIFI_ENABLE_ENTERPRISE
-    String identity;
+    String username;
 #endif
     bool dhcp { false };
     bool scanned { false };
@@ -155,7 +155,7 @@ class JustWifi {
 #if JUSTWIFI_ENABLE_ENTERPRISE
         bool addEnterpriseNetwork(
             const char * ssid,
-            const char * identity = nullptr,
+            const char * username = nullptr,
             const char * pass = nullptr,
             const char * ip = nullptr,
             const char * gw = nullptr,
