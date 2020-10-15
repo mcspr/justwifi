@@ -122,8 +122,11 @@ uint8_t JustWifi::_populate(uint8_t networkCount) {
         for (auto& entry : _network_list) {
             if (ssid_scan == entry.ssid) {
 
-                // Check security
-                if ((sec_scan != ENC_TYPE_NONE) && (entry.pass == nullptr)) continue;
+                // Ignore the network when:
+                // - the network is OPEN and we have passphrase configured
+                // - the network is secured, but we have no passphrase
+                // Actual connection routine will not allow the connection, but we will end up wasting time on the retry
+                if ((entry.pass.length() > 0) != (sec_scan != ENC_TYPE_NONE)) continue;
 
                 // In case of several networks with the same SSID
                 // we want to get the one with the best RSSI
