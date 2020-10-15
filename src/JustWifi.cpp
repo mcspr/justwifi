@@ -717,7 +717,9 @@ bool JustWifi::addEnterpriseNetwork(
 #endif // JUSTWIFI_ENABLE_ENTERPRISE
 
 void JustWifi::addCurrentNetwork() {
-    network_t network { WiFi.SSID(), WiFi.psk() };
+    network_t network;
+    network.ssid = std::move(WiFi.SSID());
+    network.pass = std::move(WiFi.psk());
     _network_list.push_front(std::move(network));
 }
 
